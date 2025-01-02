@@ -28,14 +28,14 @@ internal static class Logger
       string fileName,
       int sourceLineNumber)
   {
-    string classStr = className != nameof(Program) ? $"{className}" : "";
+    // string classStr = className != nameof(Program) ? $"{className}" : "";
     string memberStr = memberName != ".ctor" ? $"::{CleanAsyncMethodName(memberName)}()" : string.Empty;
 
     string prefix = "";
     string suffix = "";
 #if DEBUG
     suffix = $" ({fileName}:{sourceLineNumber})";
-    prefix = $" [{namespaceName}/{classStr}{memberStr}]";
+    prefix = $" [{namespaceName}/{className}{memberStr}]";
 #endif
 
     return $"{NAMESPACE_COLOR}{prefix}{RESET_COLOR}{suffix}";

@@ -11,7 +11,7 @@ namespace AethernaAI.Util;
 public class Singleton<T> where T : class, new()
 {
   private readonly static Lazy<T> _instance = new Lazy<T>(() => new T());
-  public static T I => _instance.Value;
+  public static T Instance => _instance.Value;
 
   protected Singleton()
   {

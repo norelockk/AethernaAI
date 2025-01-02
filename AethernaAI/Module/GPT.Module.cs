@@ -33,10 +33,7 @@ public class GPTModule : IGPTModule, IDisposable
   // </summary>
   public GPTModule(Core core)
   {
-    _core = core;
-    if (_core is null)
-      throw new ArgumentNullException(nameof(core));
-
+    _core = core ?? throw new ArgumentNullException(nameof(core));
     _api = _core.Config.GetConfig<string?>(c => c.GptApi!) ?? throw new ArgumentNullException(nameof(_api));
 
     var _token = _core.Config.GetConfig<string?>(c => c.GptToken!);
@@ -88,6 +85,7 @@ public class GPTModule : IGPTModule, IDisposable
       try
       {
         await GenerateResponse("test connection");
+        Logger.Log(LogLevel.Info, "GPT works well, nothing is not ok lol");
       }
       catch (Exception ex)
       {

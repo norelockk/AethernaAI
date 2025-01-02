@@ -46,7 +46,7 @@ public class SpeechModule : IDisposable
     _healthCheckTimer.Elapsed += async (s, e) => await CheckConnectionHealthAsync();
     Initialize();
     StartHealthCheck();
-    Logger.Log(LogLevel.Info, "Robust Speech module initialized");
+    Logger.Log(LogLevel.Info, "Speech module initialized");
   }
 
   private void Initialize()

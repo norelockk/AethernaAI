@@ -42,6 +42,7 @@ public class NetworkManager : IManager
     if (!_isInitialized) return;
 
     GPT?.Dispose();
+    Speech?.Dispose();
 
     _isInitialized = false;
     Logger.Log(LogLevel.Info, "Network manager shutdown");
