@@ -1,4 +1,5 @@
 using AethernaAI.Enum;
+using AethernaAI.Event;
 using AethernaAI.Model;
 using AethernaAI.Module;
 using AethernaAI.Module.Internal;
@@ -31,6 +32,9 @@ public class NetworkManager : IManager
     GPT = new GPTModule(_core);
     OSC = new VRCOsc(_core);
     Speech = new SpeechModule(_core);
+
+    _core.Bus.On("SpeechRecognized", new SpeechToGPTEvent(this));
+
     await Speech.StartListeningAsync();
 
     _isInitialized = true;
