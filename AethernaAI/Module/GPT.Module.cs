@@ -18,9 +18,9 @@ public class GPTModule : IGPTModule, IDisposable
   private Task? _healthCheckTask;
 
   private bool _isDisposed;
-  private bool _needsReconnect;
+  private bool _needsReconnect = false;
   private DateTime _lastSuccessfulRequest = DateTime.Now;
-  private int _reconnectAttempts;
+  private int _reconnectAttempts = 0;
   private const int HEALTH_CHECK_INTERVAL_MS = 60000; // 1 minute
 
   public GPTModel model = GPTModel.UNCENSORED;

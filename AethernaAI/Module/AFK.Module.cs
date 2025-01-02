@@ -22,7 +22,6 @@ public class AFKModule : IDisposable
   private DateTime _currentTime;
   private System.Threading.Timer? _timer;
   private bool _isDisposed;
-  private bool _isMessageSent = false;
 
   public TimeSpan Uptime => _currentTime - _startTime;
 
@@ -32,7 +31,7 @@ public class AFKModule : IDisposable
     _timer = new System.Threading.Timer(UpdateTime, null, 0, 5000); // Update every second
   }
 
-  private void UpdateTime(object? state)
+  private async void UpdateTime(object? state)
   {
     Console.WriteLine("updatwe");
 
@@ -49,7 +48,7 @@ public class AFKModule : IDisposable
     {
       // _core.OSC!.Send(oscAddress, $"I went eepy (eepy since {FormatUptime(Uptime)})\nbrb.", true);
 
-      mgm.OSC.Send(oscAddress, $"eepy since {FormatUptime(Uptime)}", true);
+      await mgm.OSC!.Send(oscAddress, $"eepy since {FormatUptime(Uptime)}", true);
     }
     catch (Exception ex)
     {

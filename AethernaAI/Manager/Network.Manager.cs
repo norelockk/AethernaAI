@@ -14,7 +14,7 @@ public class NetworkManager : IManager
 
   public VRCOsc? OSC { get; private set; }
   public GPTModule? GPT { get; private set; }
-  public SpeechModule Speech { get; private set; }
+  public SpeechModule? Speech { get; private set; }
 
   public bool IsInitialized => _isInitialized;
 
