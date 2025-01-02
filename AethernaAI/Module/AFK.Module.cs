@@ -1,4 +1,5 @@
 using AethernaAI.Enum;
+using AethernaAI.Manager;
 using static AethernaAI.Addresses;
 
 namespace AethernaAI.Module;
@@ -42,9 +43,13 @@ public class AFKModule : IDisposable
     var oscAddress = GetOscAddress(VRCOscAddresses.SEND_CHATBOX_MESSAGE);
     Console.WriteLine($"Sending message to OSC address: {oscAddress}");
 
+    var mgm = _core.GetManager<NetworkManager>();
+
     try
     {
-      _core.OSC!.Send(oscAddress, $"I went eepy (eepy since {FormatUptime(Uptime)})\nbrb.", true);
+      // _core.OSC!.Send(oscAddress, $"I went eepy (eepy since {FormatUptime(Uptime)})\nbrb.", true);
+
+      mgm.OSC.Send(oscAddress, $"eepy since {FormatUptime(Uptime)}", true);
     }
     catch (Exception ex)
     {

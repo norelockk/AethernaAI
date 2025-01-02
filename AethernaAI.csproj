@@ -34,6 +34,7 @@
 
   <ItemGroup>
     <Folder Include="AethernaAI\Model\" />
+    <Folder Include="AethernaAI\Manager\" />
     <Folder Include="AethernaAI\Component\" />
     <Folder Include="AethernaAI\Module\Internal\" />
     <Folder Include="AethernaAI\Enum\" />

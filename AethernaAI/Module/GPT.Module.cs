@@ -3,7 +3,6 @@ using Newtonsoft.Json;
 using AethernaAI.Util;
 using AethernaAI.Enum;
 using AethernaAI.Model;
-using AethernaAI.Interface;
 using static AethernaAI.Addresses;
 
 namespace AethernaAI.Module;
@@ -11,8 +10,24 @@ namespace AethernaAI.Module;
 /// <summary>
 /// GPT module for generating responses and other text-based tasks
 /// </summary>
-public class GPTModule : IGPTModule
+public class GPTModule : IGPTModule, IDisposable
 {
+  private System.Timers.Timer? _healthCheckTimer;
+  private readonly CancellationTokenSource _cancellationTokenSource = new();
+  private readonly object _reconnectLock = new();
+  private Task? _healthCheckTask;
+
+  private bool _isDisposed;
+  private bool _needsReconnect;
+  private DateTime _lastSuccessfulRequest = DateTime.Now;
+  private int _reconnectAttempts;
+  private const int HEALTH_CHECK_INTERVAL_MS = 60000; // 1 minute
+
+  public GPTModel model = GPTModel.UNCENSORED;
+  private readonly string? _api = string.Empty;
+  private readonly HttpClient _http = new();
+  private readonly Core? _core = null;
+
   // <summary>
   // Construct the GPT module
   // </summary>
@@ -28,7 +43,58 @@ public class GPTModule : IGPTModule
     if (!string.IsNullOrEmpty(_token))
       _http.DefaultRequestHeaders.Add("g4f-api-key", _token);
 
+    Initialize();
+    InitializeHealthCheck();
     Logger.Log(LogLevel.Info, $"GPT initialized with their API: {_api}");
+  }
+
+  private void Initialize()
+  {
+    _needsReconnect = false;
+    _reconnectAttempts = 0;
+  }
+
+  private void InitializeHealthCheck()
+  {
+    _healthCheckTimer = new System.Timers.Timer(HEALTH_CHECK_INTERVAL_MS);
+    _healthCheckTimer.Elapsed += OnHealthCheckTimer;
+    _healthCheckTimer.Start();
+  }
+
+  private async void OnHealthCheckTimer(object? sender, System.Timers.ElapsedEventArgs e)
+  {
+    if (_healthCheckTask != null && !_healthCheckTask.IsCompleted)
+      return;
+
+    _healthCheckTask = CheckConnectionHealthAsync();
+    try
+    {
+      await _healthCheckTask;
+    }
+    catch (Exception ex)
+    {
+      Logger.Log(LogLevel.Error, $"Health check failed: {ex.Message}");
+    }
+  }
+
+  private async Task CheckConnectionHealthAsync()
+  {
+    if (_isDisposed) return;
+
+    var timeSinceLastSuccess = DateTime.Now - _lastSuccessfulRequest;
+    if (timeSinceLastSuccess.TotalMilliseconds > HEALTH_CHECK_INTERVAL_MS)
+    {
+      Logger.Log(LogLevel.Warn, "No successful requests detected for a while, checking connection...");
+      try
+      {
+        await GenerateResponse("test connection");
+      }
+      catch (Exception ex)
+      {
+        Logger.Log(LogLevel.Error, $"Health check request failed: {ex.Message}");
+        _needsReconnect = true;
+      }
+    }
   }
 
   private protected object? GetBody(string prompt) => new
@@ -37,19 +103,8 @@ public class GPTModule : IGPTModule
     messages = new[] { new { role = "user", content = prompt } }
   };
 
-  public GPTModel model = GPTModel.UNCENSORED;
-  private readonly string? _api = string.Empty;
-  private readonly HttpClient _http = new();
-  private readonly Core? _core = null;
-
-  // <summary>
-  // Set GPT model
-  // </summary>
   public GPTModel SetModel(GPTModel model) => this.model = model;
 
-  // <summary>
-  // Generate a response from the GPT model
-  // </summary>
   public async Task<string> GenerateResponse(string? prompt)
   {
     if (string.IsNullOrEmpty(prompt))
@@ -72,23 +127,18 @@ public class GPTModule : IGPTModule
 
       var _result = await _response.Content.ReadAsStringAsync();
       var _parsed = JsonConvert.DeserializeObject<GPTApiResponse>(_result);
+      _lastSuccessfulRequest = DateTime.Now;
 
       return _parsed?.Choices?.FirstOrDefault()?.Message?.Content ?? throw new InvalidOperationException("No response content received");
     }
     catch (Exception ex) when (ex is HttpRequestException or JsonReaderException)
     {
       Logger.Log(LogLevel.Error, $"Response generation failed: {ex.Message}");
+      _needsReconnect = true;
       throw new InvalidOperationException("Response generation failed", ex);
     }
   }
 
-  // <summary>
-  // Stream a response from model
-  // Example using:
-  // await foreach (var token in gpt.StreamResponse(prompt))
-  // Console.Write(token)
-  // )
-  // </summary>
   public async IAsyncEnumerable<string> StreamResponse(string? prompt)
   {
     if (string.IsNullOrEmpty(prompt))
@@ -113,6 +163,7 @@ public class GPTModule : IGPTModule
     catch (HttpRequestException ex)
     {
       Logger.Log(LogLevel.Error, $"Response streaming failed: {ex.Message}");
+      _needsReconnect = true;
       throw new InvalidOperationException("Response streaming failed", ex);
     }
 
@@ -137,7 +188,36 @@ public class GPTModule : IGPTModule
       }
 
       if (!string.IsNullOrEmpty(content))
+      {
+        _lastSuccessfulRequest = DateTime.Now;
         yield return content;
+      }
     }
+  }
+
+  public void Dispose()
+  {
+    Dispose(true);
+    GC.SuppressFinalize(this);
+  }
+
+  protected virtual void Dispose(bool disposing)
+  {
+    if (!_isDisposed)
+    {
+      if (disposing)
+      {
+        _healthCheckTimer?.Stop();
+        _healthCheckTimer?.Dispose();
+        _cancellationTokenSource.Cancel();
+        _http.Dispose();
+      }
+      _isDisposed = true;
+    }
+  }
+
+  ~GPTModule()
+  {
+    Dispose(false);
   }
 }

@@ -1,107 +1,175 @@
-using AethernaAI.Util;
 using AethernaAI.Enum;
-using AethernaAI.Event;
-using AethernaAI.Module;
+using AethernaAI.Manager;
+using AethernaAI.Model;
 using AethernaAI.Service;
-using AethernaAI.Interface;
-using AethernaAI.Module.Internal;
-using static AethernaAI.Addresses;
+using AethernaAI.Util;
 
 namespace AethernaAI;
 
-public class Core : Singleton<Core>
+public class Core : Singleton<Core>, IDisposable
 {
-
   public Core()
   {
-    Logger.Log(LogLevel.Info, "Core constructed");
+    _managers = new Dictionary<Type, IManager>();
+    _isInitialized = false;
+    _isDisposed = false;
+
     Initialize();
   }
 
-  public bool Initialized { get; private set; } = false;
+  public readonly EventEmitter Bus = new();
+  public readonly ConfigService Config = new();
 
-  public VRCOsc? OSC { get; private set; }
-  public GPTModule? GPT { get; private set; }
-  public SpeechModule? Speech { get; private set; }
-  public AnticrashModule? AC { get; private set; }
+  private readonly Dictionary<Type, IManager> _managers;
+  private List<IManager>? _preinitManagers;
+  private bool _isInitialized;
+  private bool _isDisposed;
 
-  // Non-essential modules
-  public EventEmitter Bus { get; private set; } = new();
-  public ConfigService Config { get; private set; } = new();
-  public RegistryService Registry { get; private set; } = new();
+  public bool IsInitialized => _isInitialized;
 
-  private VRCLogReader? LogReader;
-  private List<IEventListener> _eventListeners = new()
+  private void Initialize()
   {
-    new PlayerMutedEvent(),
-  };
-
-  private async void Initialize()
-  {
-    if (Initialized)
+    if (_isInitialized)
       return;
 
-    foreach (var listener in _eventListeners)
+    _preinitManagers = new()
     {
-      Bus.On(listener.Name, listener);
-      Logger.Log(LogLevel.Info, $"Event listener '{listener.Name}' initialized");
-    }
-
-    // More-important modules
-    // AC = new(this);
-    GPT = new(this);
-    
-    var _listening = false;
-    var _limitTalkTime = 20 * 1000;
-    var _lastTalkTime = DateTime.Now;
-
-    Speech = new(this);
-    Speech.OnSpeechRecognized += async (object? s, string t) =>
-    {
-      var now = DateTime.Now;
-      var elapsed = (now - _lastTalkTime).TotalMilliseconds;
-
-      if (elapsed > _limitTalkTime && _listening)
-      {
-        Logger.Log(LogLevel.Info, "no speech detected");
-        _listening = false;
-        return;
-      }
-
-      if (string.IsNullOrWhiteSpace(t))
-        return;
-
-      _lastTalkTime = DateTime.Now;
-
-      var activatePhrase = GetActivationPhrases(Speech._currentLanguage);
-      if (activatePhrase.Any(pharse => t.Contains(pharse)) && !_listening)
-      {
-        Logger.Log(LogLevel.Info, "activation pharse detected");
-        _listening = true;
-        return;
-      }
-
-      if (_listening)
-      {
-        Console.WriteLine($"RECOGNIZED: Text={t}");
-        await OSC!.Send(GetOscAddress(VRCOscAddresses.SET_CHATBOX_TYPING), true);
-
-        var talk = await GPT!.GenerateResponse($"{t} <note>Limit it to 100 characters</note>");
-        Console.WriteLine($"RESPONSE: {talk}");
-      }
+      new NetworkManager(this)
     };
 
-    await Speech.StartListeningAsync();
+    foreach (var preinitManager in _preinitManagers)
+      RegisterManager(preinitManager);
 
-    // var dev = new HttpService("https://avtr.just-h.party");
-    // var r = await dev.Exec(HttpMethod.Get, "vrcx_search.php?search=ukon&n=100");
-    // Console.WriteLine(r.ToString());
+    _isInitialized = true;
+    InitializeManagers();
+    Logger.Log(LogLevel.Info, "Initialized");
+  }
 
-    // Less-important modules
-    OSC = new(this);
-    new AFKModule(this);
-    LogReader = new(this);
+  public void RegisterManager<T>(T manager) where T : class, IManager
+  {
+    ThrowIfDisposed();
+    var type = typeof(T);
 
-    Initialized = true;
+    if (_managers.ContainsKey(type)) return;
+    if (manager.IsInitialized) return;
+
+    _managers[type] = manager;
+  }
+
+  public T GetManager<T>() where T : class, IManager
+  {
+    ThrowIfDisposed();
+    var type = typeof(T);
+
+    if (_managers.TryGetValue(type, out var manager))
+      return (T)manager;
+
+    throw new ManagerNotFoundException(type);
+  }
+
+  public T? GetManagerOrDefault<T>() where T : class, IManager
+  {
+    try
+    {
+      return GetManager<T>();
+    }
+    catch (ManagerNotFoundException)
+    {
+      return null;
+    }
+  }
+
+  private void InitializeManagers()
+  {
+    ThrowIfDisposed();
+
+    foreach (var manager in _managers.Values)
+    {
+      try
+      {
+        if (manager.IsInitialized)
+          throw new ManagerAlreadyInitializedException(manager.GetType());
+
+        manager.Initialize();
+      }
+      catch (Exception ex)
+      {
+        Logger.Log(LogLevel.Error, $"Failed to initialize manager {manager.GetType().Name}: {ex}");
+      }
+    }
+  }
+
+  private void ShutdownManagers()
+  {
+    if (!_isInitialized || _isDisposed)
+      return;
+
+    foreach (var manager in _managers.Values.Reverse())
+    {
+      try
+      {
+        if (manager.IsInitialized)
+        {
+          manager.Shutdown();
+        }
+      }
+      catch (Exception ex)
+      {
+        Logger.Log(LogLevel.Error, $"Failed to shutdown manager {manager.GetType().Name}: {ex}");
+      }
+    }
+  }
+
+  public bool HasManager<T>() where T : class, IManager
+  {
+    ThrowIfDisposed();
+    return _managers.ContainsKey(typeof(T));
+  }
+
+  protected virtual void Dispose(bool disposing)
+  {
+    if (_isDisposed)
+      return;
+
+    if (disposing)
+    {
+      ShutdownManagers();
+
+      foreach (var manager in _managers.Values)
+      {
+        try
+        {
+          manager.Dispose();
+        }
+        catch (Exception ex)
+        {
+          Console.WriteLine($"Failed to dispose manager {manager.GetType().Name}: {ex}");
+        }
+      }
+
+      _managers.Clear();
+    }
+
+    _isDisposed = true;
+    _isInitialized = false;
+  }
+
+  public void Dispose()
+  {
+    Dispose(true);
+    GC.SuppressFinalize(this);
+  }
+
+  private void ThrowIfDisposed()
+  {
+    if (_isDisposed)
+    {
+      throw new ObjectDisposedException(nameof(Core));
+    }
+  }
+
+  ~Core()
+  {
+    Dispose(false);
   }
 }

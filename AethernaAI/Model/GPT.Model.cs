@@ -2,6 +2,11 @@ using Newtonsoft.Json;
 
 namespace AethernaAI.Model;
 
+public interface IGPTModule
+{
+  Task<string> GenerateResponse(string prompt);
+}
+
 public class GPTUsage
 {
   [JsonProperty("completion_tokens")]

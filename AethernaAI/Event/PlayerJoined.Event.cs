@@ -1,4 +1,4 @@
-using AethernaAI.Interface;
+using AethernaAI.Model;
 
 namespace AethernaAI.Event;
 

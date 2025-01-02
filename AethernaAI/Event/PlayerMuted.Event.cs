@@ -2,9 +2,9 @@
 // Original author: '`Deto' (deto_deto)
 // Refactor version: 'Norelock' (norelock)
 
-namespace AethernaAI.Event;
+using AethernaAI.Model;
 
-using AethernaAI.Interface;
+namespace AethernaAI.Event;
 
 public class PlayerMutedEvent : IEventListener
 {

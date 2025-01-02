@@ -2,7 +2,7 @@
 // Original author: '`Deto' (deto_deto)
 // Refactor version: 'Norelock' (norelock)
 
-using AethernaAI.Interface;
+using AethernaAI.Model;
 
 namespace AethernaAI.Util;
 
