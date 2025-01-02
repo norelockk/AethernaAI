@@ -72,16 +72,29 @@ public class SpeechModule : IDisposable
 
   private void InitializeSpeechComponents(string token, string region)
   {
-    _config = SpeechConfig.FromSubscription(token, region);
-    _config.SetProfanity(ProfanityOption.Raw);
-    _config.SpeechRecognitionLanguage = GetLanguageCode(_currentLanguage);
+      _config = SpeechConfig.FromSubscription(token, region);
+      _config.SetProfanity(ProfanityOption.Raw);
+      _config.SpeechRecognitionLanguage = GetLanguageCode(_currentLanguage);
 
-    // Ustawienia dla lepszej stabilności
-    _config.SetProperty("SpeechServiceConnection_KeepAlive", "true");
-    _config.SetProperty("SpeechServiceConnection_InitialSilenceTimeoutMs", "5000");
-    _config.SetProperty("SpeechServiceConnection_EndSilenceTimeoutMs", "5000");
-
-    _audioConfig = GetAudioConfig();
+      // Add these new settings
+      _config.SetProperty("SpeechServiceConnection_KeepAlive", "true");
+      _config.SetProperty("SpeechServiceConnection_InitialSilenceTimeoutMs", "5000");
+      _config.SetProperty("SpeechServiceConnection_EndSilenceTimeoutMs", "5000");
+      
+      // Add noise suppression settings
+      _config.SetProperty("SpeechServiceConnection_NoiseSuppression", "true");
+      _config.SetProperty("SpeechServiceConnection_NoiseSuppressionLevel", "High");
+      
+      // Add speech detection settings
+      _config.SetProperty("SpeechServiceConnection_VadMode", "Low");  // Voice Activity Detection
+      _config.SetProperty("SpeechServiceConnection_AutoDetectSourceLanguage", "false");
+      _config.SetProperty("SpeechServiceConnection_TransmitLengthBeforeThreshold", "100"); // ms
+      
+      // Modify the recognition thresholds
+      _config.SetProperty("SpeechServiceConnection_SpeechDetectionThreshold", "0.5"); // 0.0 to 1.0
+      _config.SetProperty("SpeechServiceConnection_SpeechSegmentationSilenceTimeoutMs", "300");
+      
+      _audioConfig = GetAudioConfig();
   }
 
   private void SetupRecognizer()
@@ -178,17 +191,59 @@ public class SpeechModule : IDisposable
 
   private void OnRecognized(object? sender, SpeechRecognitionEventArgs e)
   {
-    _lastRecognitionTime = DateTime.Now;
+      _lastRecognitionTime = DateTime.Now;
 
-    if (e.Result.Reason == ResultReason.RecognizedSpeech)
-    {
-      var recognizedText = e.Result.Text;
+      if (e.Result.Reason == ResultReason.RecognizedSpeech)
+      {
+          var recognizedText = e.Result.Text.Trim();
+          
+          if (ShouldFilterOut(recognizedText))
+          {
+              Logger.Log(LogLevel.Debug, $"Filtered out noise: {recognizedText}");
+              return;
+          }
+
+          ProcessRecognizedSpeech(recognizedText);
+      }
+  }
+
+  private bool ShouldFilterOut(string text)
+  {
+      var cleanText = text.Trim().ToLower();
+
+      if (cleanText.Length <= 1) return true;
+
+      string[] simpleNoisePatterns = { 
+          "hmm", "uhh", "ahh", "eh", "um", "uh",
+          "tsk", "pfff", "shh", "ssh", "psst",
+          "click", "tick", "knock", "tap", "*",
+          ".", ",", "!", "?", "-"
+      };
+
+      foreach (var pattern in simpleNoisePatterns)
+      {
+          if (cleanText == pattern) return true;
+      }
+
+      bool hasLetters = false;
+      foreach (char c in cleanText)
+      {
+          if (char.IsLetter(c))
+          {
+              hasLetters = true;
+              break;
+          }
+      }
+
+      return !hasLetters;
+  }
+
+  private void ProcessRecognizedSpeech(string recognizedText)
+  {
       _recognitionQueue.Enqueue(recognizedText);
-
       Logger.Log(LogLevel.Debug, $"Speech recognized: {recognizedText}");
       OnSpeechRecognized?.Invoke(this, recognizedText);
       _core.Bus.Emit("SpeechRecognized", recognizedText);
-    }
   }
 
   private async void OnCanceled(object? sender, SpeechRecognitionCanceledEventArgs e)
