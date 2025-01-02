@@ -1,183 +1,273 @@
-using AethernaAI.Enum;
-using static AethernaAI.Addresses;
-
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
+using AethernaAI.Enum;
 using AethernaAI.Util;
-using NAudio.Wave;
 using NAudio.CoreAudioApi;
+using System.Collections.Concurrent;
 
 namespace AethernaAI.Module;
 
-public class SpeechModule
+public class SpeechModule : IDisposable
 {
-  private List<WaveInCapabilities> GetAvailableMicrophones()
+  private readonly Core _core;
+  private SpeechRecognizer? _recognizer;
+  private SpeechConfig? _config;
+  private AudioConfig? _audioConfig;
+  public RecognizeLang _currentLanguage;
+  private readonly ConcurrentQueue<string> _recognitionQueue = new();
+  private readonly CancellationTokenSource _cancellationTokenSource = new();
+  private readonly System.Timers.Timer _healthCheckTimer;
+  private readonly object _reconnectLock = new();
+  private bool _isDisposed;
+  private bool _needsReconnect;
+  private DateTime _lastRecognitionTime = DateTime.Now;
+  private int _reconnectAttempts;
+  private const int MAX_RECONNECT_ATTEMPTS = 5;
+  private const int RECONNECT_DELAY_MS = 5000;
+  private const int HEALTH_CHECK_INTERVAL_MS = 30000; // 30 sekund
+  private const int RECOGNITION_TIMEOUT_MS = 60000;   // 1 minuta
+
+  public bool IsListening { get; private set; }
+  public event EventHandler<string>? OnSpeechRecognized;
+  public event EventHandler<ConnectionStatus>? OnConnectionStatusChanged;
+
+  public enum ConnectionStatus
   {
-    var deviceList = new List<WaveInCapabilities>();
-    for (int deviceId = 0; deviceId < WaveIn.DeviceCount; deviceId++)
-    {
-      deviceList.Add(WaveIn.GetCapabilities(deviceId));
-    }
-    return deviceList;
-  }
-
-  private void Initialize()
-  {
-    _currentLanguage = _core.Config.GetConfig<RecognizeLang>(config => config.SpeechRecognizerLanguage!);
-    _selectedLanguage = GetRecognizeLang(_currentLanguage);
-
-    var _token = _core.Config.GetConfig<string?>(config => config.SpeechRecognizerToken!);
-    var _region = _core.Config.GetConfig<string?>(config => config.SpeechRecognizerRegion!);
-    if (string.IsNullOrEmpty(_token) || string.IsNullOrEmpty(_region))
-      throw new ArgumentNullException(_token is null ? "SpeechRecognizerToken" : "SpeechRecognizerRegion");
-
-    _config = SpeechConfig.FromSubscription(_token, _region);
-    _config.SetProfanity(ProfanityOption.Raw);
-    _config.SpeechRecognitionLanguage = _selectedLanguage;
-
-    // var audioConfig = AudioConfig.FromDefaultMicrophoneInput();
-
-    var enumerator = new MMDeviceEnumerator();
-    var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
-
-    // int index = 0;
-    // foreach (var device in devices)
-    // {
-    //   Console.WriteLine($"{index}: {device.FriendlyName}");
-    //   index++;
-    // }
-    var targetDevice = devices.FirstOrDefault(d => d.FriendlyName.Contains("Virtual Cable", StringComparison.OrdinalIgnoreCase));
-    var audioConfig = AudioConfig.FromMicrophoneInput(targetDevice!.ID);
-
-    Console.WriteLine($"trg: {targetDevice.FriendlyName} | {targetDevice.ID}");
-
-    _recognizer = new SpeechRecognizer(_config, audioConfig);
-    _recognizer.Recognized += OnRecognized;
-
-    Logger.Log(LogLevel.Info, $"Speech module initialized: l:{_currentLanguage}, r:{_region}");
+    Connected,
+    Disconnected,
+    Reconnecting,
+    Failed
   }
 
   public SpeechModule(Core core)
   {
-    _core = core;
-    if (_core is null)
-      throw new ArgumentNullException(nameof(core));
-
+    _core = core ?? throw new ArgumentNullException(nameof(core));
+    _healthCheckTimer = new System.Timers.Timer(HEALTH_CHECK_INTERVAL_MS);
+    _healthCheckTimer.Elapsed += async (s, e) => await CheckConnectionHealthAsync();
     Initialize();
+    StartHealthCheck();
+    Logger.Log(LogLevel.Info, "Robust Speech module initialized");
   }
 
-  public bool Listening { get; private set; } = false;
-
-  private readonly decimal _limitTalkTime = 20 * 1000;
-  private readonly Core _core;
-
-  private SpeechRecognizer? _recognizer;
-  private DateTime _lastTalkTime = DateTime.Now;
-  private SpeechConfig? _config;
-  private RecognizeLang _currentLanguage = RecognizeLang.Polish;
-  private string? _selectedLanguage = GetRecognizeLang(RecognizeLang.Polish);
-  private bool _recognitionRunning = false;
-
-  public async Task StartMyContinuousRecognitionAsync()
+  private void Initialize()
   {
-    if (!_recognitionRunning)
+    try
     {
-      _recognitionRunning = true;
-      await _recognizer!.StartContinuousRecognitionAsync();
-      Logger.Log(LogLevel.Info, "Started continuous recognition");
+      _currentLanguage = _core.Config.GetConfig<RecognizeLang>(config => config.SpeechRecognizerLanguage);
+      var token = _core.Config.GetConfig<string?>(config => config.SpeechRecognizerToken!);
+      var region = _core.Config.GetConfig<string?>(config => config.SpeechRecognizerRegion!);
+
+      if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(region))
+        throw new ArgumentNullException("Speech configuration is missing");
+
+      InitializeSpeechComponents(token, region);
+      SetupRecognizer();
+    }
+    catch (Exception ex)
+    {
+      Logger.Log(LogLevel.Error, $"Failed to initialize Robust Speech module: {ex.Message}");
+      throw;
     }
   }
 
-  public async Task StopMyContinuousRecognitionAsync()
+  private void InitializeSpeechComponents(string token, string region)
   {
-    if (_recognitionRunning)
-    {
-      _recognitionRunning = false;
-      await _recognizer!.StopContinuousRecognitionAsync();
-      Logger.Log(LogLevel.Info, "Stopped continuous recognition");
-    }
+    _config = SpeechConfig.FromSubscription(token, region);
+    _config.SetProfanity(ProfanityOption.Raw);
+    _config.SpeechRecognitionLanguage = GetLanguageCode(_currentLanguage);
+
+    // Ustawienia dla lepszej stabilności
+    _config.SetProperty("SpeechServiceConnection_KeepAlive", "true");
+    _config.SetProperty("SpeechServiceConnection_InitialSilenceTimeoutMs", "5000");
+    _config.SetProperty("SpeechServiceConnection_EndSilenceTimeoutMs", "5000");
+
+    _audioConfig = GetAudioConfig();
   }
 
-  private List<string> SplitIntoChunks(string text, int maxLength)
+  private void SetupRecognizer()
   {
-    List<string> chunks = new List<string>();
-    string currentChunk = "";
+    _recognizer?.Dispose();
+    _recognizer = new SpeechRecognizer(_config, _audioConfig);
 
-    foreach (var word in text.Split(' '))
+    _recognizer.Recognized += OnRecognized;
+    _recognizer.Canceled += OnCanceled;
+    _recognizer.SessionStarted += (s, e) =>
     {
-      if (currentChunk.Length + word.Length + 1 <= maxLength)
+      _reconnectAttempts = 0;
+      OnConnectionStatusChanged?.Invoke(this, ConnectionStatus.Connected);
+      Logger.Log(LogLevel.Info, "Speech recognition session started");
+    };
+    _recognizer.SessionStopped += (s, e) =>
+    {
+      if (!_isDisposed && IsListening)
       {
-        currentChunk += word + " ";
+        _needsReconnect = true;
       }
-      else
+    };
+  }
+
+  private AudioConfig GetAudioConfig()
+  {
+    var enumerator = new MMDeviceEnumerator();
+    var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+    var targetDevice = devices.FirstOrDefault(d =>
+        d.FriendlyName.Contains("Virtual Cable", StringComparison.OrdinalIgnoreCase));
+
+    // return targetDevice != null
+    //     ? AudioConfig.FromMicrophoneInput(targetDevice.ID)
+    //     : AudioConfig.FromDefaultMicrophoneInput();
+
+    return AudioConfig.FromDefaultMicrophoneInput();
+  }
+
+  private async Task CheckConnectionHealthAsync()
+  {
+    if (!IsListening || _isDisposed) return;
+
+    var timeSinceLastRecognition = DateTime.Now - _lastRecognitionTime;
+    if (timeSinceLastRecognition.TotalMilliseconds > RECOGNITION_TIMEOUT_MS)
+    {
+      Logger.Log(LogLevel.Warn, "No recognition events detected for a while, attempting reconnection");
+      _needsReconnect = true;
+      await ReconnectAsync();
+    }
+  }
+
+  private void StartHealthCheck()
+  {
+    _healthCheckTimer.Start();
+  }
+
+  private async Task ReconnectAsync()
+  {
+    lock (_reconnectLock)
+    {
+      if (!_needsReconnect || _isDisposed) return;
+      if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS)
       {
-        chunks.Add(currentChunk.Trim());
-        currentChunk = word + " ";
+        OnConnectionStatusChanged?.Invoke(this, ConnectionStatus.Failed);
+        Logger.Log(LogLevel.Error, "Max reconnection attempts reached");
+        return;
       }
     }
 
-    if (!string.IsNullOrEmpty(currentChunk))
+    try
     {
-      chunks.Add(currentChunk.Trim());
-    }
+      _reconnectAttempts++;
+      OnConnectionStatusChanged?.Invoke(this, ConnectionStatus.Reconnecting);
+      Logger.Log(LogLevel.Info, $"Attempting reconnection (attempt {_reconnectAttempts}/{MAX_RECONNECT_ATTEMPTS})");
 
-    return chunks;
+      await StopListeningAsync();
+      await Task.Delay(RECONNECT_DELAY_MS);
+      Initialize();
+      await StartListeningAsync();
+
+      _needsReconnect = false;
+      OnConnectionStatusChanged?.Invoke(this, ConnectionStatus.Connected);
+    }
+    catch (Exception ex)
+    {
+      Logger.Log(LogLevel.Error, $"Reconnection attempt failed: {ex.Message}");
+      if (_reconnectAttempts < MAX_RECONNECT_ATTEMPTS)
+      {
+        await Task.Delay(RECONNECT_DELAY_MS);
+        await ReconnectAsync();
+      }
+    }
   }
 
-  private async Task SendMessageInChunks(string message, int delayBetweenChunks = 5000)
+  private void OnRecognized(object? sender, SpeechRecognitionEventArgs e)
   {
-    var chunks = SplitIntoChunks(message, 144); // VRChat's character limit is 144
+    _lastRecognitionTime = DateTime.Now;
 
-    foreach (var chunk in chunks)
+    if (e.Result.Reason == ResultReason.RecognizedSpeech)
     {
-      await _core.OSC!.Send(GetOscAddress(VRCOscAddresses.SET_CHATBOX_TYPING), true);
-      await Task.Delay(500); // Brief typing indication
+      var recognizedText = e.Result.Text;
+      _recognitionQueue.Enqueue(recognizedText);
 
-      await _core.OSC!.Send(GetOscAddress(VRCOscAddresses.SET_CHATBOX_TYPING), false);
-      await _core.OSC!.Send(GetOscAddress(VRCOscAddresses.SEND_CHATBOX_MESSAGE), chunk, true);
-
-      if (chunks.Count > 1)
-        await Task.Delay(delayBetweenChunks); // Wait between chunks
+      Logger.Log(LogLevel.Debug, $"Speech recognized: {recognizedText}");
+      OnSpeechRecognized?.Invoke(this, recognizedText);
+      _core.Bus.Emit("SpeechRecognized", recognizedText);
     }
   }
 
-  private async void OnRecognized(object? sender, SpeechRecognitionEventArgs e)
+  private async void OnCanceled(object? sender, SpeechRecognitionCanceledEventArgs e)
   {
-    Console.WriteLine($"RECG={e.Result.Text}");
-
-    var now = DateTime.Now;
-    var elapsed = (now - _lastTalkTime).TotalMilliseconds;
-
-    if (elapsed > (double)_limitTalkTime && Listening)
+    if (e.Reason == CancellationReason.Error)
     {
-      Logger.Log(LogLevel.Info, $"No speech detected for {Math.Floor(_limitTalkTime / 1000)} secs, stopping listening");
-      Listening = false;
-      return;
+      Logger.Log(LogLevel.Error, $"Speech recognition canceled: {e.ErrorCode} - {e.ErrorDetails}");
+      _needsReconnect = true;
+      await ReconnectAsync();
     }
+  }
 
-    if (string.IsNullOrWhiteSpace(e.Result.Text) || !(e.Result.Reason == ResultReason.RecognizedSpeech))
-      return;
+  private string GetLanguageCode(RecognizeLang lang) => lang switch
+  {
+    RecognizeLang.Polish => "pl-PL",
+    RecognizeLang.English => "en-US",
+    _ => "en-US"
+  };
 
-    _lastTalkTime = DateTime.Now;
-
-    var activatePhrase = GetActivationPhrases(_currentLanguage);
-    if (activatePhrase.Any(phrase => e.Result.Text.Contains(phrase)) && !Listening)
+  public async Task StartListeningAsync()
+  {
+    if (!IsListening && !_isDisposed && _recognizer != null)
     {
-      Logger.Log(LogLevel.Info, "Activation phrase detected, starting listening");
-      Listening = true;
-      return;
+      IsListening = true;
+      await _recognizer.StartContinuousRecognitionAsync();
+      _lastRecognitionTime = DateTime.Now;
+      Logger.Log(LogLevel.Info, "Speech recognition started");
     }
+  }
 
-    if (Listening)
+  public async Task StopListeningAsync()
+  {
+    if (IsListening && !_isDisposed && _recognizer != null)
     {
-      Console.WriteLine($"RECOGNIZED: Text={e.Result.Text}");
-      await _core.OSC!.Send(GetOscAddress(VRCOscAddresses.SET_CHATBOX_TYPING), true);
-
-      var talk = await _core.GPT!.GenerateResponse($"{e.Result.Text} <note>Limit it to 100 characters</note>");
-      Console.WriteLine($"RESPONSE: {talk}");
-
-      await SendMessageInChunks(talk);
-      Listening = false;
+      IsListening = false;
+      await _recognizer.StopContinuousRecognitionAsync();
+      Logger.Log(LogLevel.Info, "Speech recognition stopped");
     }
+  }
+
+  public async Task SetLanguageAsync(RecognizeLang language)
+  {
+    if (_currentLanguage != language)
+    {
+      _currentLanguage = language;
+      await StopListeningAsync();
+      Initialize();
+      if (IsListening)
+      {
+        await StartListeningAsync();
+      }
+      Logger.Log(LogLevel.Info, $"Speech recognition language changed to {language}");
+    }
+  }
+
+  protected virtual void Dispose(bool disposing)
+  {
+    if (!_isDisposed)
+    {
+      if (disposing)
+      {
+        _healthCheckTimer.Stop();
+        _healthCheckTimer.Dispose();
+        _cancellationTokenSource.Cancel();
+        _recognizer?.Dispose();
+        _audioConfig?.Dispose();
+      }
+      _isDisposed = true;
+    }
+  }
+
+  public void Dispose()
+  {
+    Dispose(true);
+    GC.SuppressFinalize(this);
+  }
+
+  ~SpeechModule()
+  {
+    Dispose(false);
   }
 }
