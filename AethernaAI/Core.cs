@@ -27,18 +27,19 @@ public class Core : Singleton<Core>, IDisposable
 
   public bool IsInitialized => _isInitialized;
 
+  private void RegisterAllManagers()
+  {
+    // TODO: automatic importing managers with priority
+    RegisterManager(new ReceiverManager(this));
+    RegisterManager(new SpeechManager(this));
+  }
+
   private void Initialize()
   {
     if (_isInitialized)
       return;
 
-    _preinitManagers = new()
-    {
-      new NetworkManager(this)
-    };
-
-    foreach (var preinitManager in _preinitManagers)
-      RegisterManager(preinitManager);
+    RegisterAllManagers();
 
     _isInitialized = true;
     InitializeManagers();
@@ -90,6 +91,7 @@ public class Core : Singleton<Core>, IDisposable
         if (manager.IsInitialized)
           throw new ManagerAlreadyInitializedException(manager.GetType());
 
+        Console.WriteLine(manager.GetType().Name);
         manager.Initialize();
       }
       catch (Exception ex)
@@ -97,6 +99,7 @@ public class Core : Singleton<Core>, IDisposable
         Logger.Log(LogLevel.Error, $"Failed to initialize manager {manager.GetType().Name}: {ex}");
       }
     }
+
   }
 
   private void ShutdownManagers()

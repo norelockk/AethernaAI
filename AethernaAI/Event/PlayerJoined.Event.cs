@@ -1,13 +1,13 @@
-using AethernaAI.Model;
+// using AethernaAI.Model;
 
-namespace AethernaAI.Event;
+// namespace AethernaAI.Event;
 
-public class PlayerJoinedEvent : IEventListener
-{
-  public string Name { get; } = "PlayerJoined";
+// public class PlayerJoinedEvent : IEventListener
+// {
+//   public string Name { get; } = "PlayerJoined";
 
-  public void Handle(params object?[] args)
-  {
-    Console.WriteLine($"Player ID {args[0]}");
-  }
-}
+//   public void Handle(params object?[] args)
+//   {
+//     Console.WriteLine($"Player ID {args[0]}");
+//   }
+// }

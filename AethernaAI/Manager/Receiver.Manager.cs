@@ -1,25 +1,23 @@
+using AethernaAI.Util;
 using AethernaAI.Enum;
-using AethernaAI.Event;
 using AethernaAI.Model;
 using AethernaAI.Module;
-using AethernaAI.Module.Internal;
-using AethernaAI.Util;
 
 namespace AethernaAI.Manager;
 
-public class NetworkManager : IManager
+public class ReceiverManager : IManager
 {
   private readonly Core _core;
+
   private bool _isInitialized;
   private bool _isDisposed;
 
-  public VRCOsc? OSC { get; private set; }
   public GPTModule? GPT { get; private set; }
   public SpeechModule? Speech { get; private set; }
 
   public bool IsInitialized => _isInitialized;
 
-  public NetworkManager(Core core)
+  public ReceiverManager(Core core)
   {
     _core = core ?? throw new ArgumentNullException(nameof(core));
   }
@@ -30,15 +28,11 @@ public class NetworkManager : IManager
       throw new ManagerAlreadyInitializedException(GetType());
 
     GPT = new GPTModule(_core);
-    OSC = new VRCOsc(_core);
     Speech = new SpeechModule(_core);
-
-    _core.Bus.On("SpeechRecognized", new SpeechToGPTEvent(this));
-
-    await Speech.StartListeningAsync();
+    // await Speech.StartListeningAsync();
 
     _isInitialized = true;
-    Logger.Log(LogLevel.Info, "Network manager initialized");
+    Logger.Log(LogLevel.Info, "Receiver initialized");
   }
 
   public void Shutdown()
@@ -49,7 +43,7 @@ public class NetworkManager : IManager
     Speech?.Dispose();
 
     _isInitialized = false;
-    Logger.Log(LogLevel.Info, "Network manager shutdown");
+    Logger.Log(LogLevel.Info, "Receiver shutdown");
   }
 
   public void Dispose()
@@ -70,7 +64,7 @@ public class NetworkManager : IManager
     _isDisposed = true;
   }
 
-  ~NetworkManager()
+  ~ReceiverManager()
   {
     Dispose(false);
   }

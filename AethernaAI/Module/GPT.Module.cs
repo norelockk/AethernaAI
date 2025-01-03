@@ -42,7 +42,7 @@ public class GPTModule : IGPTModule, IDisposable
 
     Initialize();
     InitializeHealthCheck();
-    Logger.Log(LogLevel.Info, $"GPT initialized with their API: {_api}");
+    Logger.Log(LogLevel.Info, $"GPT initialized ({_api})");
   }
 
   private void Initialize()
@@ -85,7 +85,6 @@ public class GPTModule : IGPTModule, IDisposable
       try
       {
         await GenerateResponse("test connection");
-        Logger.Log(LogLevel.Info, "GPT works well, nothing is not ok lol");
       }
       catch (Exception ex)
       {

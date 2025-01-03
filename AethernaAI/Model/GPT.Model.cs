@@ -5,6 +5,7 @@ namespace AethernaAI.Model;
 public interface IGPTModule
 {
   Task<string> GenerateResponse(string prompt);
+  IAsyncEnumerable<string> StreamResponse(string? prompt);
 }
 
 public class GPTUsage
