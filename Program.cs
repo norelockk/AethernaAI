@@ -16,7 +16,7 @@ internal class Program
 
     try
     {
-      await InitializeAsync();
+      Initialize();
       await RunMainLoopAsync();
     }
     catch (Exception ex)
@@ -26,11 +26,11 @@ internal class Program
     }
     finally
     {
-      await ShutdownAsync();
+      ShutdownAsync();
     }
   }
 
-  private static async Task InitializeAsync()
+  private static void Initialize()
   {
     try
     {
@@ -67,7 +67,7 @@ internal class Program
     }
   }
 
-  private static async Task ShutdownAsync()
+  private static void ShutdownAsync()
   {
     if (_isShuttingDown)
     {
@@ -94,7 +94,7 @@ internal class Program
 
   private static void OnProcessExit(object sender, EventArgs e)
   {
-    ShutdownAsync().Wait();
+    ShutdownAsync();
   }
 
   private static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs e)

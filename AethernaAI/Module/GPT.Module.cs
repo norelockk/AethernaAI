@@ -14,13 +14,10 @@ public class GPTModule : IGPTModule, IDisposable
 {
   private System.Timers.Timer? _healthCheckTimer;
   private readonly CancellationTokenSource _cancellationTokenSource = new();
-  private readonly object _reconnectLock = new();
   private Task? _healthCheckTask;
 
   private bool _isDisposed;
-  private bool _needsReconnect = false;
   private DateTime _lastSuccessfulRequest = DateTime.Now;
-  private int _reconnectAttempts = 0;
   private const int HEALTH_CHECK_INTERVAL_MS = 60000; // 1 minute
 
   public GPTModel model = GPTModel.UNCENSORED;
@@ -41,14 +38,12 @@ public class GPTModule : IGPTModule, IDisposable
       _http.DefaultRequestHeaders.Add("g4f-api-key", _token);
 
     Initialize();
-    InitializeHealthCheck();
     Logger.Log(LogLevel.Info, $"GPT initialized ({_api})");
   }
 
   private void Initialize()
   {
-    _needsReconnect = false;
-    _reconnectAttempts = 0;
+    InitializeHealthCheck();
   }
 
   private void InitializeHealthCheck()
@@ -90,7 +85,6 @@ public class GPTModule : IGPTModule, IDisposable
       catch (Exception ex)
       {
         Logger.Log(LogLevel.Error, $"Health check request failed: {ex.Message}");
-        _needsReconnect = true;
       }
     }
   }
@@ -132,7 +126,6 @@ public class GPTModule : IGPTModule, IDisposable
     catch (Exception ex) when (ex is HttpRequestException or JsonReaderException)
     {
       Logger.Log(LogLevel.Error, $"Response generation failed: {ex.Message}");
-      _needsReconnect = true;
       throw new InvalidOperationException("Response generation failed", ex);
     }
   }
@@ -161,7 +154,6 @@ public class GPTModule : IGPTModule, IDisposable
     catch (HttpRequestException ex)
     {
       Logger.Log(LogLevel.Error, $"Response streaming failed: {ex.Message}");
-      _needsReconnect = true;
       throw new InvalidOperationException("Response streaming failed", ex);
     }
 

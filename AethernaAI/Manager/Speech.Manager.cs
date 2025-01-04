@@ -28,7 +28,7 @@ public class SpeechManager : IManager
       _receiverManager = _core.GetManagerOrDefault<ReceiverManager>();
   }
 
-  public async void Initialize()
+  public void Initialize()
   {
     if (_isInitialized)
       throw new ManagerAlreadyInitializedException(GetType());
