@@ -13,7 +13,7 @@ public class ReceiverManager : IManager
   private bool _isDisposed;
 
   public GPTModule? GPT { get; private set; }
-  public SpeechModule? Speech { get; private set; }
+  public STTModule? STT { get; private set; }
 
   public bool IsInitialized => _isInitialized;
 
@@ -22,14 +22,13 @@ public class ReceiverManager : IManager
     _core = core ?? throw new ArgumentNullException(nameof(core));
   }
 
-  public async void Initialize()
+  public void Initialize()
   {
     if (_isInitialized)
       throw new ManagerAlreadyInitializedException(GetType());
 
     GPT = new GPTModule(_core);
-    Speech = new SpeechModule(_core);
-    // await Speech.StartListeningAsync();
+    STT = new STTModule(_core);
 
     _isInitialized = true;
     Logger.Log(LogLevel.Info, "Receiver initialized");
@@ -40,7 +39,7 @@ public class ReceiverManager : IManager
     if (!_isInitialized) return;
 
     GPT?.Dispose();
-    Speech?.Dispose();
+    STT?.Dispose();
 
     _isInitialized = false;
     Logger.Log(LogLevel.Info, "Receiver shutdown");

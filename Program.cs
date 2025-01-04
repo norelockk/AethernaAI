@@ -7,6 +7,7 @@ internal class Program
 {
   private static Core? _core;
   private static bool _isShuttingDown;
+  private static DateTime _launched = DateTime.Now;
 
   static async Task Main(string[] args)
   {
@@ -44,7 +45,9 @@ internal class Program
 
   private static async Task RunMainLoopAsync()
   {
-    Logger.Log(LogLevel.Step, "Application started");
+    var elapsed = (DateTime.Now - _launched).TotalMilliseconds;
+
+    Logger.Log(LogLevel.Info, $"Running (took {elapsed} ms)");
 
     while (!_isShuttingDown)
     {

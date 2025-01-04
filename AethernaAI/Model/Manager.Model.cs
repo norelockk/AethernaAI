@@ -3,10 +3,21 @@ namespace AethernaAI.Model;
 public interface IManager : IDisposable
 {
   bool IsInitialized { get; }
-  void Initialize();
   void Shutdown();
+
+  virtual void Initialize() { }
+
+  virtual void Update() { }
 }
 
+public interface IAsyncManager : IManager
+{
+  virtual Task InitializeAsync() => Task.CompletedTask;
+
+  virtual Task UpdateAsync() => Task.CompletedTask;
+}
+
+// Exception classes remain unchanged
 public class ManagerNotFoundException : Exception
 {
   public ManagerNotFoundException(Type type)
@@ -17,4 +28,10 @@ public class ManagerAlreadyInitializedException : Exception
 {
   public ManagerAlreadyInitializedException(Type type)
       : base($"Manager of type {type.Name} is already initialized") { }
+}
+
+public class ManagerAlreadyRegisteredException : Exception
+{
+  public ManagerAlreadyRegisteredException(Type type)
+      : base($"Manager of type {type.Name} is already registered") { }
 }

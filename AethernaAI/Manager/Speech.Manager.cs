@@ -9,17 +9,23 @@ public class SpeechManager : IManager
 {
   private readonly Core _core;
 
-  private bool _isInitialized;
-  private bool _isDisposed;
+  private bool _isInitialized = false;
+  private bool _isListening = false;
+  private bool _isDisposed = false;
 
+  private ReceiverManager? _receiverManager = null;
   // public GPTModule? GPT { get; private set; }
   // public SpeechModule? Speech { get; private set; }
 
   public bool IsInitialized => _isInitialized;
+  public bool IsListening => _isListening;
 
   public SpeechManager(Core core)
   {
     _core = core ?? throw new ArgumentNullException(nameof(core));
+
+    if (_core.HasManager<ReceiverManager>())
+      _receiverManager = _core.GetManagerOrDefault<ReceiverManager>();
   }
 
   public async void Initialize()

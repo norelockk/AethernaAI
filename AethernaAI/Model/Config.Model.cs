@@ -12,16 +12,19 @@ public class ConfigModel
   public string? GptToken { get; set; } = null;
 
   [JsonProperty("vrchat.groupId")]
-  public string? VrchatGroupId { get; set; } = "grp_f3518074-c206-4dc1-b17d-0864d46f8c98";
+  public string? VrchatGroupId { get; set; } = "grp_2e1917ed-0f8d-4075-8098-5919a37c8f43";
 
   [JsonProperty("vrchat.worldId")]
   public string? VrchatWorldId { get; set; } = "wrld_dec35e59-53f5-4def-b29c-2d7b649b8638";
 
   [JsonProperty("vrchat.username")]
-  public string? VrchatUsername { get; set; } = "norelock";
+  public string? VrchatUsername { get; set; } = "eqipleeburton@gmail.com";
 
   [JsonProperty("vrchat.password")]
-  public string? VrchatPassword { get; set; } = "";
+  public string? VrchatPassword { get; set; } = "eqipleeburton@gmail.com";
+
+  [JsonProperty("vrchat.oscMessage")]
+  public List<string> VrchatOscMessage { get; set; } = new() {};
 
   [JsonProperty("speechRecognizer.token")]
   public string? SpeechRecognizerToken { get; set; } = "9019e90eebd249659d33a4999fbf33fb";

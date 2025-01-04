@@ -10,31 +10,32 @@ public class Core : Singleton<Core>, IDisposable
 {
   public Core()
   {
-    _managers = new Dictionary<Type, IManager>();
-    _isInitialized = false;
-    _isDisposed = false;
-
+    Logger.Log(LogLevel.Step, "Initializing..");
     Initialize();
   }
 
   public readonly EventEmitter Bus = new();
   public readonly ConfigService Config = new();
 
-  private readonly Dictionary<Type, IManager> _managers;
-  private List<IManager>? _preinitManagers;
-  private bool _isInitialized;
-  private bool _isDisposed;
+  private readonly Dictionary<Type, IManager> _managers = new();
+  private readonly CancellationTokenSource _updateLoopCancellation = new();
+  private Task? _updateLoopTask;
+  private bool _isInitialized = false;
+  private bool _isDisposed = false;
 
   public bool IsInitialized => _isInitialized;
 
   private void RegisterAllManagers()
   {
     // TODO: automatic importing managers with priority
+    Logger.Log(LogLevel.Info, "Registering all managers...");
+
+    RegisterManager(new VRCManager(this));
     RegisterManager(new ReceiverManager(this));
     RegisterManager(new SpeechManager(this));
   }
 
-  private void Initialize()
+  private async void Initialize()
   {
     if (_isInitialized)
       return;
@@ -42,31 +43,44 @@ public class Core : Singleton<Core>, IDisposable
     RegisterAllManagers();
 
     _isInitialized = true;
-    InitializeManagers();
+    await InitializeManagersAsync();
+    StartUpdateLoop();
+
     Logger.Log(LogLevel.Info, "Initialized");
   }
 
   public void RegisterManager<T>(T manager) where T : class, IManager
   {
     ThrowIfDisposed();
-    var type = typeof(T);
 
-    if (_managers.ContainsKey(type)) return;
-    if (manager.IsInitialized) return;
+    if (manager.IsInitialized)
+      throw new ManagerAlreadyInitializedException(manager.GetType());
 
-    _managers[type] = manager;
+    var type = manager.GetType(); // Ensure the actual runtime type is used
+
+    if (_managers.ContainsKey(type))
+      throw new ManagerAlreadyRegisteredException(type);
+
+    _managers[type] = manager; // Store by the concrete type
+    Logger.Log(LogLevel.Info, $"Registered manager: {type.Name}");
   }
 
   public T GetManager<T>() where T : class, IManager
   {
     ThrowIfDisposed();
-    var type = typeof(T);
+    var requestedType = typeof(T);
 
-    if (_managers.TryGetValue(type, out var manager))
-      return (T)manager;
+    foreach (var (type, manager) in _managers)
+    {
+      if (requestedType.IsAssignableFrom(type)) // Matches both interface and concrete types
+      {
+        return (T)manager;
+      }
+    }
 
-    throw new ManagerNotFoundException(type);
+    throw new ManagerNotFoundException(requestedType);
   }
+
 
   public T? GetManagerOrDefault<T>() where T : class, IManager
   {
@@ -80,26 +94,47 @@ public class Core : Singleton<Core>, IDisposable
     }
   }
 
-  private void InitializeManagers()
+  private async Task InitializeManagersAsync()
   {
     ThrowIfDisposed();
+
+    Logger.Log(LogLevel.Info, "Starting manager initialization...");
 
     foreach (var manager in _managers.Values)
     {
       try
       {
         if (manager.IsInitialized)
-          throw new ManagerAlreadyInitializedException(manager.GetType());
+        {
+          Logger.Log(LogLevel.Warn, $"Manager {manager.GetType().Name} is already initialized. Skipping...");
+          continue;
+        }
 
-        Console.WriteLine(manager.GetType().Name);
-        manager.Initialize();
+        Logger.Log(LogLevel.Info, $"Initializing manager: {manager.GetType().Name}");
+
+        if (manager is IAsyncManager asyncManager)
+        {
+          var method = manager.GetType().GetMethod("InitializeAsync");
+
+          if (method is not null)
+            await asyncManager.InitializeAsync();
+          else
+            asyncManager.Initialize();
+        }
+        else
+        {
+          manager.Initialize();
+        }
+
+        Logger.Log(LogLevel.Info, $"Manager {manager.GetType().Name} initialized successfully.");
       }
       catch (Exception ex)
       {
-        Logger.Log(LogLevel.Error, $"Failed to initialize manager {manager.GetType().Name}: {ex}");
+        Logger.Log(LogLevel.Error, $"Failed to initialize manager {manager.GetType().Name}: {ex.Message}");
       }
     }
 
+    Logger.Log(LogLevel.Info, "All managers initialized.");
   }
 
   private void ShutdownManagers()
@@ -126,7 +161,44 @@ public class Core : Singleton<Core>, IDisposable
   public bool HasManager<T>() where T : class, IManager
   {
     ThrowIfDisposed();
-    return _managers.ContainsKey(typeof(T));
+    var requestedType = typeof(T);
+    return _managers.Any(kvp => requestedType.IsAssignableFrom(kvp.Key));
+  }
+
+  private void StartUpdateLoop()
+  {
+    _updateLoopTask = Task.Run(async () =>
+    {
+      var token = _updateLoopCancellation.Token;
+      while (!token.IsCancellationRequested)
+      {
+        try
+        {
+          foreach (var manager in _managers.Values)
+          {
+            if (manager is IAsyncManager asyncManager)
+            {
+              var method = manager.GetType().GetMethod("UpdateAsync");
+
+              if (method is not null)
+                await asyncManager.UpdateAsync();
+              else
+                asyncManager.Update();
+            }
+            else
+            {
+              manager.Update();
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          Logger.Log(LogLevel.Error, $"Update loop error: {ex.Message}");
+        }
+
+        await Task.Delay(1000, token);
+      }
+    }, _updateLoopCancellation.Token);
   }
 
   protected virtual void Dispose(bool disposing)

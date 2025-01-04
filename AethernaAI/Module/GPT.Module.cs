@@ -85,6 +85,7 @@ public class GPTModule : IGPTModule, IDisposable
       try
       {
         await GenerateResponse("test connection");
+        Logger.Log(LogLevel.Info, $"Test request successful");
       }
       catch (Exception ex)
       {
