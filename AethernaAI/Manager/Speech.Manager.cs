@@ -38,7 +38,6 @@ public class SpeechManager : IManager
     // await Speech.StartListeningAsync();
 
     _isInitialized = true;
-    Logger.Log(LogLevel.Info, "Speech initialized");
   }
 
   public void Shutdown()

@@ -26,6 +26,38 @@ public class VRCManager : IAsyncManager
     _oscMessage = _core.Config.GetConfig<List<string>?>(c => c.VrchatOscMessage!);
   }
 
+  public void Initialize()
+  {
+    if (_isInitialized)
+      throw new ManagerAlreadyInitializedException(GetType());
+
+    OSC = new VRCOsc(_core);
+    LogReader = new VRCLogReader(_core);
+
+    _isInitialized = true;
+  }
+
+  public async Task UpdateAsync()
+  {
+    if (!_isInitialized || _isDisposed)
+      return;
+
+    if ((DateTime.UtcNow - _lastUpdate).TotalSeconds >= 5)
+    {
+      try
+      {
+        await UpdateOsc();
+      }
+      catch (Exception ex)
+      {
+        Logger.Log(LogLevel.Error, $"Error in VRCManager UpdateAsync: {ex.Message}");
+      }
+
+      _lastUpdate = DateTime.UtcNow;
+    }
+  }
+
+  #region OSC management
   private string GetOscMessage()
   {
     string text = string.Empty;
@@ -45,52 +77,12 @@ public class VRCManager : IAsyncManager
 
   private async Task UpdateOsc()
   {
-    if (OSC == null) return;
-
     var message = GetOscMessage();
     var address = GetOscAddress(VRCOscAddresses.SEND_CHATBOX_MESSAGE);
 
-    await OSC.Send(address, message, true);
+    await OSC!.Send(address, message, true);
   }
-
-  // IAsyncManager InitializeAsync method
-  public void Initialize()
-  {
-    if (_isInitialized)
-      throw new ManagerAlreadyInitializedException(GetType());
-
-    OSC = new VRCOsc(_core);
-    LogReader = new VRCLogReader(_core);
-
-    _isInitialized = true;
-    Logger.Log(LogLevel.Info, "VRCManager initialized");
-  }
-
-  // IAsyncManager UpdateAsync method
-  public async Task UpdateAsync()
-  {
-    if (!_isInitialized || _isDisposed)
-      return;
-
-    Console.WriteLine("update");
-
-    // Check if 5 seconds have passed since the last update
-    if ((DateTime.UtcNow - _lastUpdate).TotalSeconds >= 5)
-    {
-      Logger.Log(LogLevel.Debug, "VRCManager UpdateAsync triggered");
-
-      try
-      {
-        await UpdateOsc();
-      }
-      catch (Exception ex)
-      {
-        Logger.Log(LogLevel.Error, $"Error in VRCManager UpdateAsync: {ex.Message}");
-      }
-
-      _lastUpdate = DateTime.UtcNow;
-    }
-  }
+  #endregion
 
   public void Shutdown()
   {

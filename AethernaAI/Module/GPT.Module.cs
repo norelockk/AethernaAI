@@ -38,7 +38,7 @@ public class GPTModule : IGPTModule, IDisposable
       _http.DefaultRequestHeaders.Add("g4f-api-key", _token);
 
     Initialize();
-    Logger.Log(LogLevel.Info, $"GPT initialized ({_api})");
+    Logger.Log(LogLevel.Info, $"GPT module initialized ({_api})");
   }
 
   private void Initialize()

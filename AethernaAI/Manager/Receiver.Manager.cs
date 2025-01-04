@@ -31,7 +31,6 @@ public class ReceiverManager : IManager
     STT = new STTModule(_core);
 
     _isInitialized = true;
-    Logger.Log(LogLevel.Info, "Receiver initialized");
   }
 
   public void Shutdown()

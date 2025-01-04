@@ -57,7 +57,7 @@ public class STTModule : IDisposable
     _healthCheckTimer.Elapsed += async (s, e) => await CheckConnectionHealthAsync();
     Initialize();
     StartHealthCheck();
-    Logger.Log(LogLevel.Info, "Speech to text module initialized");
+    Logger.Log(LogLevel.Info, "Speech To Text module initialized");
   }
 
   private void Initialize()

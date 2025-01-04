@@ -28,7 +28,7 @@ public class Core : Singleton<Core>, IDisposable
   private void RegisterAllManagers()
   {
     // TODO: automatic importing managers with priority
-    Logger.Log(LogLevel.Info, "Registering all managers...");
+    Logger.Log(LogLevel.Step, "Registering managers...");
 
     RegisterManager(new VRCManager(this));
     RegisterManager(new ReceiverManager(this));
@@ -43,7 +43,7 @@ public class Core : Singleton<Core>, IDisposable
     RegisterAllManagers();
 
     _isInitialized = true;
-    await InitializeManagersAsync();
+    await InitializeManagers();
     StartUpdateLoop();
 
     Logger.Log(LogLevel.Info, "Initialized");
@@ -53,15 +53,15 @@ public class Core : Singleton<Core>, IDisposable
   {
     ThrowIfDisposed();
 
-    if (manager.IsInitialized)
-      throw new ManagerAlreadyInitializedException(manager.GetType());
+    var type = manager.GetType();
 
-    var type = manager.GetType(); // Ensure the actual runtime type is used
+    if (manager.IsInitialized)
+      throw new ManagerAlreadyInitializedException(type);
 
     if (_managers.ContainsKey(type))
       throw new ManagerAlreadyRegisteredException(type);
 
-    _managers[type] = manager; // Store by the concrete type
+    _managers[type] = manager;
     Logger.Log(LogLevel.Info, $"Registered manager: {type.Name}");
   }
 
@@ -72,7 +72,7 @@ public class Core : Singleton<Core>, IDisposable
 
     foreach (var (type, manager) in _managers)
     {
-      if (requestedType.IsAssignableFrom(type)) // Matches both interface and concrete types
+      if (requestedType.IsAssignableFrom(type))
       {
         return (T)manager;
       }
@@ -94,11 +94,11 @@ public class Core : Singleton<Core>, IDisposable
     }
   }
 
-  private async Task InitializeManagersAsync()
+  private async Task InitializeManagers()
   {
     ThrowIfDisposed();
 
-    Logger.Log(LogLevel.Info, "Starting manager initialization...");
+    Logger.Log(LogLevel.Step, "Initializing managers");
 
     foreach (var manager in _managers.Values)
     {
@@ -106,11 +106,11 @@ public class Core : Singleton<Core>, IDisposable
       {
         if (manager.IsInitialized)
         {
-          Logger.Log(LogLevel.Warn, $"Manager {manager.GetType().Name} is already initialized. Skipping...");
+          Logger.Log(LogLevel.Warn, $"Manager {manager.GetType().Name} already initialized, skipping...");
           continue;
         }
 
-        Logger.Log(LogLevel.Info, $"Initializing manager: {manager.GetType().Name}");
+        Logger.Log(LogLevel.Step, $"Initializing {manager.GetType().Name}");
 
         if (manager is IAsyncManager asyncManager)
         {
@@ -126,7 +126,7 @@ public class Core : Singleton<Core>, IDisposable
           manager.Initialize();
         }
 
-        Logger.Log(LogLevel.Info, $"Manager {manager.GetType().Name} initialized successfully.");
+        Logger.Log(LogLevel.Info, $"{manager.GetType().Name} initialized");
       }
       catch (Exception ex)
       {
