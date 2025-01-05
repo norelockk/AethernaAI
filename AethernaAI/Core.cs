@@ -16,6 +16,7 @@ public class Core : Singleton<Core>, IDisposable
 
   public readonly EventEmitter Bus = new();
   public readonly ConfigService Config = new();
+  public readonly RegistryService Registry = new();
 
   private readonly Dictionary<Type, IManager> _managers = new();
   private readonly CancellationTokenSource _updateLoopCancellation = new();

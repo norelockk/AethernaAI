@@ -56,12 +56,13 @@ public class STTModule : IDisposable
     _healthCheckTimer = new System.Timers.Timer(HEALTH_CHECK_INTERVAL_MS);
     _healthCheckTimer.Elapsed += async (s, e) => await CheckConnectionHealthAsync();
     Initialize();
-    StartHealthCheck();
     Logger.Log(LogLevel.Info, "Speech To Text module initialized");
   }
 
   private void Initialize()
   {
+    StartHealthCheck();
+    
     try
     {
       if (_isInQuotaPause)

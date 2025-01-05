@@ -12,6 +12,20 @@ using static AethernaAI.Util.ProcessUtil;
 
 namespace AethernaAI.Module.Internal;
 
+public class ProcessedEventArgs : EventArgs
+{
+  public string Action { get; }
+  public string UserId { get; } 
+  public string? SourceId { get; } = null;
+
+  public ProcessedEventArgs(string action, string userId, string? sourceId)
+  {
+    Action = action;
+    UserId = userId;
+    SourceId = sourceId;
+  }
+}
+
 /// <summary>
 /// Class responsible for reading and processing VRChat log files.
 /// </summary>
@@ -188,13 +202,14 @@ public class VRCLogReader
     return lines;
   }
 
+  public event EventHandler<ProcessedEventArgs>? OnProcessed;
   private bool ProcessLine(string line)
   {
     Dictionary<string, Match> _matched = new Dictionary<string, Match>
         {
             { "left",             PLAYER_LEFT.Match(line) },
             { "joined",           PLAYER_JOIN.Match(line) },
-            { "sticker_spawned",  STICKER_SPAWN.Match(line) }
+            { "newSticker",  STICKER_SPAWN.Match(line) }
         };
 
     if (_matched.Any(x => x.Value.Success))
@@ -207,24 +222,20 @@ public class VRCLogReader
         case "joined":
           {
             string userId = _matched[action].Groups[2].Value;
-            string username = _matched[action].Groups[1].Value;
+            string displayName = _matched[action].Groups[1].Value;
 
-            if (action == "left")
-              _core!.Bus.Emit("PlayerLeft", userId, username);
-            else
-              _core!.Bus.Emit("PlayerJoined", userId, username);
-
-            Logger.Log(LogLevel.Debug, $"User {username} ({userId}) {action}");
+            Logger.Log(LogLevel.Debug, $"User {displayName} ({userId}) {action}");
+            OnProcessed?.Invoke(this, new ProcessedEventArgs(action, userId, null));
             break;
           }
-        case "sticker_spawned":
+        case "newSticker":
           {
             string userId = _matched[action].Groups[1].Value;
             string username = _matched[action].Groups[2].Value;
             string stickerId = _matched[action].Groups[3].Value;
 
-            _core!.Bus.Emit("PlayerSpawnedSticker", userId, stickerId, username);
             Logger.Log(LogLevel.Debug, $"User {username} ({userId}) spawned sticker {stickerId}");
+            OnProcessed?.Invoke(this, new ProcessedEventArgs(action, userId, stickerId));
             break;
           }
         default:

@@ -1,5 +1,6 @@
 ﻿using AethernaAI.Enum;
 using AethernaAI.Util;
+using static AethernaAI.Constants;
 
 namespace AethernaAI;
 
@@ -32,6 +33,10 @@ internal class Program
 
   private static void Initialize()
   {
+    Logger.Log(LogLevel.Step, $"Launching AethernaAI {VERSION}");
+    
+    var elapsed = (DateTime.Now - _launched).TotalMilliseconds;
+
     try
     {
       _core = Core.Instance;
@@ -41,14 +46,12 @@ internal class Program
       Logger.Log(LogLevel.Error, $"Failed to initialize application: {ex}");
       throw;
     }
+
+    Logger.Log(LogLevel.Info, $"Running (took {elapsed} ms)");
   }
 
   private static async Task RunMainLoopAsync()
   {
-    var elapsed = (DateTime.Now - _launched).TotalMilliseconds;
-
-    Logger.Log(LogLevel.Info, $"Running (took {elapsed} ms)");
-
     while (!_isShuttingDown)
     {
       try

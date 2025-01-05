@@ -33,12 +33,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="AethernaAI\Enum\" />
     <Folder Include="AethernaAI\Model\" />
+    <Folder Include="AethernaAI\Dialogs\" />
     <Folder Include="AethernaAI\Manager\" />
+    <Folder Include="AethernaAI\Service\" />
     <Folder Include="AethernaAI\Component\" />
     <Folder Include="AethernaAI\Module\Internal\" />
-    <Folder Include="AethernaAI\Enum\" />
-    <Folder Include="AethernaAI\Service\" />
   </ItemGroup>
 
 </Project>
