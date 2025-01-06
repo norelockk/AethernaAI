@@ -23,7 +23,7 @@ public class DataManager : IManager
       return true;
 
     var userGroups = _vrcManager!.Users!.GetUserGroups(userId);
-    Console.WriteLine(userGroups.ToString());
+    Console.WriteLine(userGroups.ToJson(false));
     foreach (var group in userGroups)
     {
       if (group.Id == _groupId)
