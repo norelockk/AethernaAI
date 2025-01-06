@@ -26,7 +26,7 @@ public class DataManager : IManager
     Console.WriteLine(userGroups.ToJson(false));
     foreach (var group in userGroups)
     {
-      if (group.Id == _groupId)
+      if (group.GroupId == _groupId)
         return true;
     }
 
