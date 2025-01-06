@@ -1,5 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -10,16 +9,13 @@
     <FileVersion>2025.1.1.0</FileVersion>
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
-
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <Optimize>True</Optimize>
     <DebugType>none</DebugType>
   </PropertyGroup>
-
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DebugType>none</DebugType>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="LucHeart.CoreOSC" Version="1.4.0" />
     <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.42.0" />
@@ -31,7 +27,6 @@
     <PackageReference Include="OscQueryLibrary" Version="1.1.2" />
     <PackageReference Include="VRChat.API" Version="1.18.8" />
   </ItemGroup>
-
   <ItemGroup>
     <Folder Include="AethernaAI\Enum\" />
     <Folder Include="AethernaAI\Model\" />
@@ -41,5 +36,7 @@
     <Folder Include="AethernaAI\Component\" />
     <Folder Include="AethernaAI\Module\Internal\" />
   </ItemGroup>
-
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="echo Release@@Any CPU&#xD;&#xA;if &quot;$(ConfigurationName)&quot; == &quot;Release&quot; (if &quot;$(PlatformName)&quot; == &quot;AnyCPU&quot; (&quot;$(ProjectDir)_Obfuscar\Obfuscar.Console.exe&quot; &quot;$(ProjectDir)_Obfuscar\obfuscar_Release_Any_CPU.xml&quot;&#xD;&#xA;xcopy /e /v &quot;$(ProjectDir)bin\Release\net8.0-windows\\Out\&quot; &quot;$(ProjectDir)bin\Release\net8.0-windows\&quot; /Y))" />
+  </Target>
 </Project>
