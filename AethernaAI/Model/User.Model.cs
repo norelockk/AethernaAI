@@ -50,24 +50,33 @@ public class User
   [JsonProperty("id")]
   public string? Id { get; set; } = null;
 
+  [JsonProperty("admin")]
+  public bool Admin { get; set; } = false;
+
   [JsonProperty("status")]
   public UserStatus Status { get; set; } = UserStatus.Offline;
-
-  [JsonProperty("discordId")]
-  public string? DiscordId { get; set; } = null;
 
   [JsonProperty("joinedAt")]
   public long JoinedAt { get; set; } = 0;
 
+  [JsonProperty("firstName")]
+  public string? FirstName { get; set; } = null;
+
+  [JsonProperty("discordId")]
+  public string? DiscordId { get; set; } = null;
+
+  [JsonProperty("penalties")]
+  public List<UserPenalty>? Penalties { get; set; } = new();
+
   [JsonProperty("lastVisit")]
   public long LastVisit { get; set; } = 0;
+
+  [JsonProperty("visitCount")]
+  public int VisitCount { get; set; } = 0;
 
   [JsonProperty("displayName")]
   public string? DisplayName { get; set; } = null;
 
   [JsonProperty("lastAvatars")]
   public List<UserAvatar>? LastAvatars { get; set; } = new(); // empty array = []
-
-  [JsonProperty("penalties")]
-  public List<UserPenalty>? Penalties { get; set; } = new();
 }

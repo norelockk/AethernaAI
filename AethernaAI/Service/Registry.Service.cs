@@ -47,10 +47,26 @@ public class Registry<T> where T : class, new()
         var serialized = JsonConvert.SerializeObject(item, Formatting.Indented);
         var deserialized = JsonConvert.DeserializeObject<T>(serialized) ?? new T();
 
-        if (!item.Equals(deserialized))
+        // Check if there are missing or mismatched fields
+        var currentFields = typeof(T).GetProperties();
+        var deserializedFields = typeof(T).GetProperties();
+
+        bool needsUpdate = false;
+        foreach (var field in currentFields)
         {
-          Logger.Log(LogLevel.Warn, $"Entity {id} had mismatched fields. Updating to match schema.");
-          Save(id, deserialized);
+          var currentValue = field.GetValue(item);
+          var deserializedValue = field.GetValue(deserialized);
+
+          if (currentValue == null && deserializedValue != null)
+          {
+            field.SetValue(item, deserializedValue);
+            needsUpdate = true;
+          }
+        }
+
+        if (needsUpdate)
+        {
+          Save(id, item);
         }
       }
       catch (JsonException ex)
