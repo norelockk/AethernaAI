@@ -15,6 +15,13 @@ public enum UserPenaltyType
 {
   Ban,
   Warning,
+  Blacklist
+}
+
+public enum UserStatus
+{
+  Online,
+  Offline
 }
 
 public class UserPenalty
@@ -35,13 +42,16 @@ public class UserPenalty
   public string? Invoker { get; set; } = null;
 
   [JsonProperty("received")]
-  public long Receiver { get; set; } = 0;
+  public long Received { get; set; } = 0;
 }
 
 public class User
 {
   [JsonProperty("id")]
   public string? Id { get; set; } = null;
+
+  [JsonProperty("status")]
+  public UserStatus Status { get; set; } = UserStatus.Offline;
 
   [JsonProperty("discordId")]
   public string? DiscordId { get; set; } = null;

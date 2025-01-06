@@ -8,12 +8,22 @@ using AethernaAI.Dialogs;
 using AethernaAI.Module.Internal;
 using static AethernaAI.Addresses;
 using static AethernaAI.Constants;
+using Logger = AethernaAI.Util.Logger;
 
 namespace AethernaAI.Manager;
 
 public class VRCManager : ApiClient, IAsyncManager
 {
   #region OSC
+  public static string ReplaceFirst<T>(string input, string search, T replacement)
+  {
+    int index = input.IndexOf(search);
+    if (index < 0)
+      return input;
+
+    return input.Substring(0, index) + replacement + input.Substring(index + search.Length);
+  }
+
   private string ProcessOscMessage()
   {
     string text = string.Empty;
@@ -28,12 +38,16 @@ public class VRCManager : ApiClient, IAsyncManager
       text += line;
     }
 
+    // TODO: automatic placeholder replacer
+    text = ReplaceFirst(text, "{online}", _groupUsers);
+    text = ReplaceFirst(text, "{maxpi}", _groupMaxUsers);
+    // text = ReplaceFirst()
+
     return text;
   }
 
   private async Task UpdateOsc()
   {
-    Console.WriteLine("update osc");
     var message = ProcessOscMessage();
 
     await OSC!.Send(GetOscAddress(VRCOscAddresses.SEND_CHATBOX_MESSAGE), message, true);
@@ -41,7 +55,7 @@ public class VRCManager : ApiClient, IAsyncManager
   #endregion
 
   private readonly Core _core;
-  private protected GroupsApi _vrcGroups;
+  private protected InstancesApi _vrcInstances;
   private protected Configuration _vrcConfig;
   private protected AuthenticationApi _vrcAuth;
 
@@ -54,19 +68,28 @@ public class VRCManager : ApiClient, IAsyncManager
   }
 
   private List<string>? _oscMessage;
+  private string? _worldId;
   private string? _groupId;
   private bool _isLogged;
   private bool _isDisposed;
+  private int _groupUsers;
+  private int _groupMaxUsers;
+
   private bool _isInitialized;
-  private DateTime _lastUpdate = DateTime.MinValue;
+  private DateTime _lastOSCUpdate = DateTime.MinValue;
+  private DateTime _lastInfoUpdate = DateTime.MinValue;
 
   public VRCOsc? OSC { get; private set; }
   public UsersApi? Users { get; private set; }
+  public GroupsApi? Groups { get; private set; }
   public Group? Group { get; private set; }
+
   public CurrentUser? User { get; private set; }
   public VRCLogReader? LogReader { get; private set; }
 
   public bool IsLogged => _isLogged;
+  public int GroupUsers => _groupUsers;
+  public int GroupMaxUsers => _groupMaxUsers;
   public bool IsInitialized => _isInitialized;
 
   public VRCManager(Core core)
@@ -85,10 +108,12 @@ public class VRCManager : ApiClient, IAsyncManager
       UserAgent = $"Eqipa/{VERSION} norelock"
     };
     _vrcAuth = new(this, this, _vrcConfig);
-    _vrcGroups = new(this, this, _vrcConfig);
+    _vrcInstances = new(this, this, _vrcConfig);
 
     Users = new(this, this, _vrcConfig);
+    Groups = new(this, this, _vrcConfig);
 
+    _worldId = _core.Config.GetConfig<string?>(c => c.VrchatWorldId!);
     _groupId = _core.Config.GetConfig<string?>(c => c.VrchatGroupId!);
     _oscMessage = _core.Config.GetConfig<List<string>?>(c => c.VrchatOscMessage!);
   }
@@ -118,7 +143,8 @@ public class VRCManager : ApiClient, IAsyncManager
         if (result.Verified && !_isLogged)
         {
           User = _vrcAuth.GetCurrentUser();
-          Group = _vrcGroups.GetGroup(_groupId, true);
+          Group = Groups!.GetGroup(_groupId, true);
+          UpdateInstanceUsers();
 
           _isLogged = true;
 
@@ -128,8 +154,63 @@ public class VRCManager : ApiClient, IAsyncManager
     }
     catch (ApiException e)
     {
+      Logger.Log(LogLevel.Error, $"error: {e.Message}");
       throw e;
     }
+  }
+
+  private void UpdateInstanceUsers()
+  {
+    var now = DateUtil.ToUnixTime(DateTime.Now);
+    var instances = Groups!.GetGroupInstances(_groupId);
+
+    _groupMaxUsers = instances.Sum(i => i.World.Capacity);
+
+    // TODO: optimized way
+    _groupUsers = 0;
+
+    foreach (var groupInstance in instances!)
+    {
+      try
+      {
+        var instance = _vrcInstances.GetInstance(_worldId, groupInstance.InstanceId);
+
+        if (instance.Users is null)
+        {
+          _groupUsers += instance.Platforms.Android + instance.Platforms.Ios + instance.Platforms.Standalonewindows;
+        }
+        else
+        {
+          foreach (var user in instance.Users)
+          {
+            bool exists = _core.Registry.Users.Has(user.Id);
+
+            if (!exists)
+              _core.Registry.Users.Save(user.Id, new()
+              {
+                Id = user.Id,
+                Status = Model.UserStatus.Online,
+                JoinedAt = now,
+                LastVisit = now,
+                DisplayName = user.DisplayName,
+              });
+            else
+              _core.Registry.Users.Update(user.Id, user =>
+              {
+                if (user.Status is not Model.UserStatus.Online)
+                  user.Status = Model.UserStatus.Online;
+              });
+          }
+        }
+      }
+      catch (Exception e)
+      {
+        Logger.Log(LogLevel.Error, $"Problem with updating instance users: {e.Message}");
+        throw e;
+      }
+    }
+
+    Console.WriteLine($"{_groupUsers}/{_groupMaxUsers}");
   }
 
   public void Initialize()
@@ -137,10 +218,10 @@ public class VRCManager : ApiClient, IAsyncManager
     if (_isInitialized)
       throw new ManagerAlreadyInitializedException(GetType());
 
+    Login();
+
     OSC = new VRCOsc(_core);
     LogReader = new VRCLogReader(_core);
-
-    Login();
 
     _isInitialized = true;
   }
@@ -150,7 +231,7 @@ public class VRCManager : ApiClient, IAsyncManager
     if (!_isInitialized || _isDisposed)
       return;
 
-    if ((DateTime.UtcNow - _lastUpdate).TotalSeconds >= 5)
+    if ((DateTime.UtcNow - _lastOSCUpdate).TotalSeconds >= 5)
     {
       try
       {
@@ -161,7 +242,22 @@ public class VRCManager : ApiClient, IAsyncManager
         Logger.Log(LogLevel.Error, $"Error in VRCManager UpdateAsync: {ex.Message}");
       }
 
-      _lastUpdate = DateTime.UtcNow;
+      _lastOSCUpdate = DateTime.UtcNow;
+    }
+
+    if ((DateTime.UtcNow - _lastInfoUpdate).TotalSeconds >= 60)
+    {
+      try
+      {
+        UpdateInstanceUsers();
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine(ex.StackTrace);
+        // throw;
+      }
+
+      _lastInfoUpdate = DateTime.UtcNow;
     }
   }
 

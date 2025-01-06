@@ -32,6 +32,7 @@ public class Core : Singleton<Core>, IDisposable
     Logger.Log(LogLevel.Step, "Registering managers...");
 
     RegisterManager(new VRCManager(this));
+    RegisterManager(new DataManager(this));
     RegisterManager(new ReceiverManager(this));
     RegisterManager(new SpeechManager(this));
   }
