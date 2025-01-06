@@ -1,4 +1,3 @@
-using Swan;
 using AethernaAI.Util;
 using AethernaAI.Enum;
 using AethernaAI.Model;
@@ -19,6 +18,21 @@ public class UserManager : IManager
   private bool _isInitialized = false;
   private bool _isDisposed = false;
   private string? _groupId;
+
+  private bool IsUserGroupInvited(string userId)
+  {
+    if (!_vrcManager!.IsLogged)
+      return true;
+
+    var invites = _vrcManager!.Groups!.GetGroupInvites(_groupId);
+    foreach (var invite in invites)
+    {
+      if (invite.UserId == userId)
+        return true;
+    }
+
+    return false;
+  }
 
   private bool IsUserInGroup(string userId)
   {
@@ -80,8 +94,25 @@ public class UserManager : IManager
         if (data.Status is not UserStatus.Online)
           data.Status = UserStatus.Online;
 
+        if (data.DisplayName is null || data.DisplayName != user.DisplayName)
+          data.DisplayName = user.DisplayName;
+
         data.VisitCount++;
       });
+    }
+
+    var data = _registry.Get(userId);
+    if (data is not null)
+    {
+      List<string> msg = new()
+      {
+        $"Użytkownik {user.DisplayName} (`{userId}`) dołączył na instancje",
+        $"Pierwszy raz dołączył w <t:{data.JoinedAt}:F>",
+        "",
+        $"To jest jego {data.VisitCount} wejście, ostatnio był widziany w <t:{data.LastVisit}:F> (<t:{data.LastVisit}:R>)",
+      };
+
+      _discordManager!.SendEmbed("Użytkownicy", String.Join("\n", msg));
     }
   }
 
@@ -120,6 +151,17 @@ public class UserManager : IManager
         data.LastVisit = now;
       });
     }
+
+    var data = _registry.Get(userId);
+    if (data is not null)
+    {
+      List<string> msg = new()
+      {
+        $"Użytkownik {data.DisplayName} (`{userId}`) opuścił instancje"
+      };
+
+      _discordManager!.SendEmbed("Użytkownicy", String.Join("\n", msg));
+    }
   }
 
   private void Process(object? sender, ProcessedEventArgs data)
@@ -141,6 +183,7 @@ public class UserManager : IManager
   }
 
   private VRCManager? _vrcManager;
+  private DiscordManager? _discordManager;
 
   public bool IsInitialized => _isInitialized;
 
@@ -151,8 +194,8 @@ public class UserManager : IManager
 
     _groupId = _core.Config.GetConfig<string?>(c => c.VrchatGroupId!);
 
-    if (_core.HasManager<VRCManager>())
-      _vrcManager = _core.GetManagerOrDefault<VRCManager>();
+    if (_core.HasManager<VRCManager>()) _vrcManager = _core.GetManagerOrDefault<VRCManager>();
+    if (_core.HasManager<DiscordManager>()) _discordManager = _core.GetManagerOrDefault<DiscordManager>();
   }
 
   public void Initialize()

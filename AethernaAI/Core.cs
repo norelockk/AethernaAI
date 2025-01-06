@@ -31,6 +31,7 @@ public class Core : Singleton<Core>, IDisposable
     // TODO: automatic importing managers with priority
     Logger.Log(LogLevel.Step, "Registering managers...");
 
+    RegisterManager(new DiscordManager(this));
     RegisterManager(new VRCManager(this));
     RegisterManager(new UserManager(this));
     RegisterManager(new ReceiverManager(this));
