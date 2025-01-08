@@ -177,7 +177,7 @@ public class VRCManager : ApiClient, IAsyncManager
         if (instance.Users is null)
         {
           // _groupUsers += instance.Platforms.Android + instance.Platforms.Ios + instance.Platforms.Standalonewindows;
-          _groupUsers = _core.Registry.Users.GetCountByCondition(user => user.Status is Model.UserStatus.Online);
+          // _groupUsers = _core.Registry.Users.GetCountByCondition(user => user.Status is Model.UserStatus.Online);
         }
         else
         {
@@ -209,8 +209,6 @@ public class VRCManager : ApiClient, IAsyncManager
         Logger.Log(LogLevel.Error, $"Problem with updating instance users: {e.Message}");
       }
     }
-
-    Console.WriteLine($"{_groupUsers}/{_groupMaxUsers}");
   }
 
   public void Initialize()
@@ -243,6 +241,8 @@ public class VRCManager : ApiClient, IAsyncManager
 
     if ((DateTime.UtcNow - _lastOSCUpdate).TotalSeconds >= 5)
     {
+       _groupUsers = _core.Registry.Users.GetCountByCondition(user => user.Status is Model.UserStatus.Online);
+
       try
       {
         await UpdateOsc();
@@ -255,7 +255,7 @@ public class VRCManager : ApiClient, IAsyncManager
       _lastOSCUpdate = DateTime.UtcNow;
     }
 
-    if ((DateTime.UtcNow - _lastInfoUpdate).TotalSeconds >= 180)
+    if ((DateTime.UtcNow - _lastInfoUpdate).TotalSeconds >= 60)
     {
       try
       {
