@@ -102,6 +102,18 @@ public class Registry<T> where T : class, new()
     }
   }
 
+  public void UpdateAll(Action<T> updateAction)
+  {
+    foreach (var id in _cache.Keys.ToList())
+    {
+      var item = _cache[id];
+      updateAction(item);
+      Save(id, item);
+    }
+
+    Logger.Log(LogLevel.Info, $"Updated all entities");
+  }
+
   public void Delete(string id)
   {
     var path = Path.Combine(_folderPath, $"{id}.json");

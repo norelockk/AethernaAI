@@ -192,6 +192,7 @@ public class VRCManager : ApiClient, IAsyncManager
                 Status = Model.UserStatus.Online,
                 JoinedAt = now,
                 LastVisit = now,
+                VisitCount = 1,
                 DisplayName = user.DisplayName,
               });
             else
@@ -245,7 +246,7 @@ public class VRCManager : ApiClient, IAsyncManager
       _lastOSCUpdate = DateTime.UtcNow;
     }
 
-    if ((DateTime.UtcNow - _lastInfoUpdate).TotalSeconds >= 60)
+    if ((DateTime.UtcNow - _lastInfoUpdate).TotalSeconds >= 180)
     {
       try
       {
@@ -264,6 +265,18 @@ public class VRCManager : ApiClient, IAsyncManager
   public void Shutdown()
   {
     if (!_isInitialized) return;
+
+    var now = DateUtil.ToUnixTime(DateTime.Now);
+
+    // make all users offline
+    _core.Registry.Users.UpdateAll(user =>
+    {
+      if (user.Status is Model.UserStatus.Online)
+      {
+        user.Status = Model.UserStatus.Offline;
+        user.LastVisit = now;
+      }
+    });
 
     _isInitialized = false;
     Logger.Log(LogLevel.Info, "VRCManager shutdown");
