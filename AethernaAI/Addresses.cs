@@ -1,4 +1,5 @@
-using AethernaAI.Enum;
+using AethernaAI.Model;
+using AethernaAI.Module.Internal;
 
 namespace AethernaAI;
 

@@ -2,7 +2,6 @@ using VRChat.API.Api;
 using VRChat.API.Model;
 using VRChat.API.Client;
 using AethernaAI.Util;
-using AethernaAI.Enum;
 using AethernaAI.Model;
 using AethernaAI.Dialogs;
 using AethernaAI.Module.Internal;
@@ -144,7 +143,7 @@ public class VRCManager : ApiClient, IAsyncManager
         {
           User = _vrcAuth.GetCurrentUser();
           Group = Groups!.GetGroup(_groupId, true);
-          UpdateInstanceUsers();
+          UpdateInfo();
 
           _isLogged = true;
 
@@ -158,54 +157,12 @@ public class VRCManager : ApiClient, IAsyncManager
     }
   }
 
-  private void UpdateInstanceUsers()
+  private void UpdateInfo()
   {
     var now = DateUtil.ToUnixTime(DateTime.Now);
     var instances = Groups!.GetGroupInstances(_groupId);
 
     _groupMaxUsers = instances.Sum(i => i.World.Capacity);
-
-    foreach (var groupInstance in instances!)
-    {
-      try
-      {
-        var instance = _vrcInstances.GetInstance(_worldId, groupInstance.InstanceId);
-
-        if (instance.Users is null)
-        {
-          // _groupUsers += instance.Platforms.Android + instance.Platforms.Ios + instance.Platforms.Standalonewindows;
-          // _groupUsers = _core.Registry.Users.GetCountByCondition(user => user.Status is Model.UserStatus.Online);
-        }
-        else
-        {
-          foreach (var user in instance.Users)
-          {
-            bool exists = _core.Registry.Users.Has(user.Id);
-
-            if (!exists)
-              _core.Registry.Users.Save(user.Id, new()
-              {
-                Id = user.Id,
-                Status = Model.UserStatus.Online,
-                JoinedAt = now,
-                LastVisit = now,
-                VisitCount = 1,
-                DisplayName = user.DisplayName,
-              });
-            else
-              _core.Registry.Users.Update(user.Id, user =>
-              {
-                if (user.Status is not Model.UserStatus.Online)
-                  user.Status = Model.UserStatus.Online;
-              });
-          }
-        }
-      }
-      catch (Exception e)
-      {
-        Logger.Log(LogLevel.Error, $"Problem with updating instance users: {e.Message}");
-      }
-    }
   }
 
   public void Initialize()
@@ -256,12 +213,11 @@ public class VRCManager : ApiClient, IAsyncManager
     {
       try
       {
-        UpdateInstanceUsers();
+        UpdateInfo();
       }
       catch (Exception ex)
       {
-        Console.WriteLine(ex.StackTrace);
-        // throw;
+        Logger.Log(LogLevel.Error, $"Error in VRCManager UpdateAsync: {ex.Message}");
       }
 
       _lastInfoUpdate = DateTime.UtcNow;

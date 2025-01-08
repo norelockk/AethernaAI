@@ -1,8 +1,16 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using AethernaAI.Enum;
 
 namespace AethernaAI.Util;
+
+public enum LogLevel
+{
+  Info,
+  Step,
+  Warn,
+  Error,
+  Debug
+}
 
 /// <summary>
 /// Logs messages to the console

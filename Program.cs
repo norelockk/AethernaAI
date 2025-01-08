@@ -1,5 +1,4 @@
-﻿using AethernaAI.Enum;
-using AethernaAI.Util;
+﻿using AethernaAI.Util;
 using static AethernaAI.Constants;
 
 namespace AethernaAI;

@@ -1,4 +1,3 @@
-using AethernaAI.Enum;
 using Newtonsoft.Json;
 
 namespace AethernaAI.Model;

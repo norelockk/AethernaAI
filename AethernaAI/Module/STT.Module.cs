@@ -1,10 +1,10 @@
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
-using AethernaAI.Enum;
 using AethernaAI.Util;
 using NAudio.CoreAudioApi;
 using System.Collections.Concurrent;
 using static AethernaAI.Addresses;
+using AethernaAI.Model;
 
 namespace AethernaAI.Module;
 

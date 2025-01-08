@@ -17,6 +17,14 @@
     <DebugType>none</DebugType>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="AethernaAI\Component\**" />
+    <Compile Remove="AethernaAI\Enum\**" />
+    <EmbeddedResource Remove="AethernaAI\Component\**" />
+    <EmbeddedResource Remove="AethernaAI\Enum\**" />
+    <None Remove="AethernaAI\Component\**" />
+    <None Remove="AethernaAI\Enum\**" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="LucHeart.CoreOSC" Version="1.4.0" />
     <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.42.0" />
     <PackageReference Include="NAudio" Version="2.2.1" />
@@ -28,12 +36,10 @@
     <PackageReference Include="VRChat.API" Version="1.18.8" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="AethernaAI\Enum\" />
     <Folder Include="AethernaAI\Model\" />
     <Folder Include="AethernaAI\Dialogs\" />
     <Folder Include="AethernaAI\Manager\" />
     <Folder Include="AethernaAI\Service\" />
-    <Folder Include="AethernaAI\Component\" />
     <Folder Include="AethernaAI\Module\Internal\" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">

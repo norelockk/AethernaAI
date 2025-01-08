@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
-using AethernaAI.Enum;
 using AethernaAI.Util;
 using static AethernaAI.Constants;
 using static AethernaAI.Util.ProcessUtil;

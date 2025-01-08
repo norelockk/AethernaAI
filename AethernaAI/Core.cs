@@ -1,4 +1,3 @@
-using AethernaAI.Enum;
 using AethernaAI.Manager;
 using AethernaAI.Model;
 using AethernaAI.Service;

@@ -2,6 +2,19 @@ using Newtonsoft.Json;
 
 namespace AethernaAI.Model;
 
+public enum GPTModel
+{
+  LOVE,
+  DEVIL,
+  EIRENE,
+  NORMAL,
+  WIZARD,
+  EXPERT,
+  PT_EXPERT,
+  UNCENSORED,
+  GOD_TOLITHIS,
+}
+
 public interface IGPTModule
 {
   Task<string> GenerateResponse(string prompt);

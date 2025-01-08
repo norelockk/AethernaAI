@@ -1,5 +1,4 @@
 using AethernaAI.Util;
-using AethernaAI.Enum;
 using AethernaAI.Model;
 using System.Net.Http.Json;
 

@@ -2,6 +2,12 @@ using Newtonsoft.Json;
 
 namespace AethernaAI.Model;
 
+public enum RecognizeLang
+{
+  Polish,
+  English,
+}
+
 public class UserAvatar
 {
   [JsonProperty("id")]

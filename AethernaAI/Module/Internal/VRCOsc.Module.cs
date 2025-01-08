@@ -3,9 +3,14 @@ using OscQueryLibrary;
 using LucHeart.CoreOSC;
 using OscQueryLibrary.Utils;
 using AethernaAI.Util;
-using AethernaAI.Enum;
 
 namespace AethernaAI.Module.Internal;
+
+public enum VRCOscAddresses
+{
+  SET_CHATBOX_TYPING,
+  SEND_CHATBOX_MESSAGE,
+}
 
 public class VRCOsc
 {

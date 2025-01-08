@@ -1,7 +1,6 @@
 using System.Text;
 using Newtonsoft.Json;
 using AethernaAI.Util;
-using AethernaAI.Enum;
 using AethernaAI.Model;
 using static AethernaAI.Addresses;
 

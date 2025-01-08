@@ -1,6 +1,5 @@
 using Newtonsoft.Json;
 using System.Linq.Expressions;
-using AethernaAI.Enum;
 using AethernaAI.Util;
 using AethernaAI.Model;
 
