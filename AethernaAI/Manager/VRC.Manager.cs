@@ -165,9 +165,6 @@ public class VRCManager : ApiClient, IAsyncManager
 
     _groupMaxUsers = instances.Sum(i => i.World.Capacity);
 
-    // TODO: optimized way
-    _groupUsers = 0;
-
     foreach (var groupInstance in instances!)
     {
       try
