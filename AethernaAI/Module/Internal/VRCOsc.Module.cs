@@ -1,7 +1,3 @@
-// AethernaAI 2.0
-// Original author: '`Deto' (deto_deto)
-// Refactor version: 'Norelock' (norelock)
-
 using System.Net;
 using OscQueryLibrary;
 using LucHeart.CoreOSC;
@@ -14,91 +10,118 @@ namespace AethernaAI.Module.Internal;
 public class VRCOsc
 {
   private Core? _core;
-  private OscDuplex? _gameConnection = null;
-  private List<OscQueryServer> _oscQueryServers = new();
-  private OscQueryServer? _currentOscQueryServer = null;
-  private CancellationTokenSource _loopCancellationToken = new();
+  private readonly List<OscConnection> _connections = new();
+  private readonly List<OscQueryServer> _oscQueryServers = new();
 
   public VRCOsc(Core core)
   {
     _core = core;
 
     var server = new OscQueryServer("Aetherna", IPAddress.Loopback);
-    server.FoundVrcClient += FindVrcClient;
+    server.FoundVrcClient += HandleNewVrcClient;
 
     _oscQueryServers.Add(server);
     server.Start();
   }
 
-  private Task FindVrcClient(OscQueryServer oscQueryServer, IPEndPoint ipEndPoint)
+  private Task HandleNewVrcClient(OscQueryServer oscQueryServer, IPEndPoint ipEndPoint)
   {
-    _loopCancellationToken.Cancel();
-    _loopCancellationToken = new CancellationTokenSource();
-    _gameConnection?.Dispose();
-    _gameConnection = null;
+    var existingConnection = _connections.FirstOrDefault(conn => conn.Endpoint.Equals(ipEndPoint));
 
-    Logger.Log(LogLevel.Debug, $"Connected to VRC Client at {ipEndPoint}");
+    if (existingConnection != null)
+    {
+      Logger.Log(LogLevel.Debug, $"VRC Client at {ipEndPoint} already connected.");
+      return Task.CompletedTask;
+    }
 
-    _gameConnection = new OscDuplex(new IPEndPoint(ipEndPoint.Address, oscQueryServer.OscReceivePort), ipEndPoint);
-    _currentOscQueryServer = oscQueryServer;
+    Logger.Log(LogLevel.Debug, $"Connecting to VRC Client at {ipEndPoint}");
 
-    ErrorHandledTask.Run(ReceiverLoopAsync);
+    var newConnection = new OscConnection(_core!, oscQueryServer, ipEndPoint);
+    _connections.Add(newConnection);
+    newConnection.StartReceiverLoop();
+
     return Task.CompletedTask;
   }
 
-  private async Task ReceiverLoopAsync()
+  public async Task Send(string address, params object[] arguments)
   {
-    var currentCancellationToken = _loopCancellationToken.Token;
-
-    while (!currentCancellationToken.IsCancellationRequested)
+    foreach (var connection in _connections)
     {
+      await connection.Send(address, arguments);
+    }
+  }
+
+  private class OscConnection
+  {
+    private readonly Core _core;
+    private readonly OscDuplex _gameConnection;
+    private readonly CancellationTokenSource _loopCancellationToken = new();
+    public IPEndPoint Endpoint { get; }
+
+    public OscConnection(Core core, OscQueryServer oscQueryServer, IPEndPoint ipEndPoint)
+    {
+      _core = core;
+      _gameConnection = new OscDuplex(new IPEndPoint(ipEndPoint.Address, oscQueryServer.OscReceivePort), ipEndPoint);
+      Endpoint = ipEndPoint;
+    }
+
+    public void StartReceiverLoop()
+    {
+      ErrorHandledTask.Run(ReceiverLoopAsync);
+    }
+
+    private async Task ReceiverLoopAsync()
+    {
+      var currentCancellationToken = _loopCancellationToken.Token;
+
+      while (!currentCancellationToken.IsCancellationRequested)
+      {
+        try
+        {
+          await ReceiveLogic();
+        }
+        catch (Exception e)
+        {
+          Logger.Log(LogLevel.Error, $"Loop receiver error for {Endpoint}: {e.Message}");
+        }
+      }
+    }
+
+    private async Task ReceiveLogic()
+    {
+      OscMessage received;
+
       try
       {
-        await ReceiveLogic();
+        received = await _gameConnection.ReceiveMessageAsync();
       }
       catch (Exception e)
       {
-        Logger.Log(LogLevel.Error, $"Loop receiver error: {e.Message}");
+        Logger.Log(LogLevel.Error, $"Error receiving message from {Endpoint}: {e.Message}");
+        return;
+      }
+
+      switch (received.Address)
+      {
+        case "/avatar/parameters/MuteSelf":
+          _core.Bus.Emit("PlayerMuted", (bool)received.Arguments[0]!);
+          break;
+        default:
+          // Logger.Log(LogLevel.Debug, $"Received unknown message from {Endpoint}: {received.Address}");
+          break;
       }
     }
-  }
 
-  // public event Action<bool>? GotMuted;
-
-  private async Task ReceiveLogic()
-  {
-    if (_gameConnection is null) return;
-
-    OscMessage received;
-
-    try
+    public async Task Send(string address, params object[] arguments)
     {
-      received = await _gameConnection.ReceiveMessageAsync();
-    }
-    catch (Exception e)
-    {
-      Logger.Log(LogLevel.Error, $"Error receiving message: {e.Message}");
-      return;
+      arguments ??= Array.Empty<object>();
+      await _gameConnection.SendAsync(new OscMessage(address, arguments));
     }
 
-    // Console.WriteLine($"Received message: {received.Address}, {string.Join(", ", received.Arguments)}");
-    switch (received.Address)
+    public void Dispose()
     {
-      case "/avatar/parameters/MuteSelf":
-        _core!.Bus.Emit("PlayerMuted", (bool)received.Arguments[0]!);
-        break;
-      default:
-        // Logger.Log(LogLevel.Debug, $"Received unknown message: {received.Address}");
-        break;
+      _loopCancellationToken.Cancel();
+      _gameConnection.Dispose();
     }
-  }
-  public async Task Send(string address, params object[] arguments)
-  {
-    if (_gameConnection is null)
-      return;
-
-    arguments ??= Array.Empty<object>();
-
-    await _gameConnection.SendAsync(new OscMessage(address, arguments));
   }
 }

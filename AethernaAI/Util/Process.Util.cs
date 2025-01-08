@@ -1,8 +1,5 @@
-// AethernaAI 2.0
-// Original author: '`Deto' (deto_deto)
-// Refactor version: 'Norelock' (norelock)
-
 using System.Diagnostics;
+using System.Linq;
 
 namespace AethernaAI.Util;
 
@@ -19,5 +16,15 @@ internal static class ProcessUtil
   public static Process? GetProcessByName(string name)
   {
     return Process.GetProcessesByName(name).FirstOrDefault();
+  }
+
+  /// <summary>
+  /// Gets all processes with the specified name.
+  /// </summary>
+  /// <param name="name">The name of the processes to find.</param>
+  /// <returns>An array of <see cref="Process"/> objects matching the specified name, or an empty array if no such processes are found.</returns>
+  public static Process[] GetProcessesByName(string name)
+  {
+    return Process.GetProcessesByName(name);
   }
 }
