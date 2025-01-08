@@ -154,8 +154,7 @@ public class VRCManager : ApiClient, IAsyncManager
     }
     catch (ApiException e)
     {
-      Logger.Log(LogLevel.Error, $"error: {e.Message}");
-      throw e;
+      Logger.Log(LogLevel.Error, $"API login error: {e.Message}");
     }
   }
 
@@ -207,7 +206,6 @@ public class VRCManager : ApiClient, IAsyncManager
       catch (Exception e)
       {
         Logger.Log(LogLevel.Error, $"Problem with updating instance users: {e.Message}");
-        throw e;
       }
     }
 
@@ -218,6 +216,16 @@ public class VRCManager : ApiClient, IAsyncManager
   {
     if (_isInitialized)
       throw new ManagerAlreadyInitializedException(GetType());
+
+    // crash or smth = also status to offline
+    _core.Registry.Users.UpdateAll(user =>
+    {
+      if (user.Status is Model.UserStatus.Online)
+      {
+        user.Status = Model.UserStatus.Offline;
+        user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
+      }
+    });
 
     Login();
 
@@ -266,15 +274,13 @@ public class VRCManager : ApiClient, IAsyncManager
   {
     if (!_isInitialized) return;
 
-    var now = DateUtil.ToUnixTime(DateTime.Now);
-
-    // make all users offline
+    // make all users offline properly
     _core.Registry.Users.UpdateAll(user =>
     {
       if (user.Status is Model.UserStatus.Online)
       {
         user.Status = Model.UserStatus.Offline;
-        user.LastVisit = now;
+        user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
       }
     });
 
