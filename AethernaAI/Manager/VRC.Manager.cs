@@ -176,7 +176,8 @@ public class VRCManager : ApiClient, IAsyncManager
 
         if (instance.Users is null)
         {
-          _groupUsers += instance.Platforms.Android + instance.Platforms.Ios + instance.Platforms.Standalonewindows;
+          // _groupUsers += instance.Platforms.Android + instance.Platforms.Ios + instance.Platforms.Standalonewindows;
+          _groupUsers = _core.Registry.Users.GetCountByCondition(user => user.Status == Model.UserStatus.Online);
         }
         else
         {

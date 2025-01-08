@@ -104,14 +104,14 @@ public class Registry<T> where T : class, new()
 
   public void UpdateAll(Action<T> updateAction)
   {
-    foreach (var id in _cache.Keys.ToList())
+    foreach (var id in _cache.Keys.ToList())  // Iterate through all cached items
     {
       var item = _cache[id];
-      updateAction(item);
-      Save(id, item);
+      updateAction(item);   // Apply the update action
+      Save(id, item);       // Save the updated item back to file and cache
     }
 
-    Logger.Log(LogLevel.Info, $"Updated all entities");
+    Logger.Log(LogLevel.Info, $"Updated all entities.");
   }
 
   public void Delete(string id)
@@ -135,6 +135,16 @@ public class Registry<T> where T : class, new()
   public T? Get(string id) => _cache.TryGetValue(id, out var item) ? item : null;
 
   public List<T> GetAll() => _cache.Values.ToList();
+
+  public int GetCountByCondition(Func<T, bool> condition)
+  {
+    return _cache.Values.Count(condition);
+  }
+
+  public List<T> GetAllFiltered(Func<T, bool> condition)
+  {
+    return _cache.Values.Where(condition).ToList();
+  }
 }
 
 public class RegistryService
