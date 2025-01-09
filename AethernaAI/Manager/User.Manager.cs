@@ -59,8 +59,14 @@ public class UserManager : Registry<User>, IManager
       return;
     }
 
-    if (!IsUserInGroup(userId) && !IsUserGroupInvited(userId))
+    if (!IsUserInGroup(userId))
     {
+      if (IsUserGroupInvited(userId))
+      {
+        Logger.Log(LogLevel.Debug, $"Skipping user {user.DisplayName} ({userId}) because they're already invited");
+        return;
+      }
+
       var groupInvite = new CreateGroupInviteRequest(userId);
 
       try
@@ -208,13 +214,13 @@ public class UserManager : Registry<User>, IManager
     {
       case "joined":
         {
-          UserJoined(data.UserId);
+          UserJoined(data.Data["UserId"].ToString()!);
           break;
         }
 
       case "left":
         {
-          UserLeft(data.UserId);
+          UserLeft(data.Data["UserId"].ToString()!);
           break;
         }
     }

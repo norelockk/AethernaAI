@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using AethernaAI.Util;
 using AethernaAI.Model;
-using static AethernaAI.Util.Color;
+using static AethernaAI.Util.ColorUtil;
 
 namespace AethernaAI.Manager;
 

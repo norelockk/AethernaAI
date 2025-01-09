@@ -1,6 +1,6 @@
 namespace AethernaAI.Util;
 
-public static class Color
+public static class ColorUtil
 {
   public static int ConvertHexToDecimalColor(string? colorHex)
   {

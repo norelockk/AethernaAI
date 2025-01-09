@@ -31,6 +31,7 @@ public class Core : Singleton<Core>, IDisposable
     RegisterManager(new DiscordManager(this));
     RegisterManager(new VRCManager(this));
     RegisterManager(new UserManager(this));
+    RegisterManager(new VRCInstanceManager(this));
     RegisterManager(new ReceiverManager(this));
     RegisterManager(new SpeechManager(this));
   }
