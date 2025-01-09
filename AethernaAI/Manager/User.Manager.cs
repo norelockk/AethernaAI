@@ -59,14 +59,10 @@ public class UserManager : Registry<User>, IManager
       return;
     }
 
-    if (!IsUserInGroup(userId))
+    var inGroup = IsUserInGroup(userId);
+    var invited = IsUserGroupInvited(userId);
+    if (!invited && !inGroup)
     {
-      if (IsUserGroupInvited(userId))
-      {
-        Logger.Log(LogLevel.Debug, $"Skipping user {user.DisplayName} ({userId}) because they're already invited");
-        return;
-      }
-
       var groupInvite = new CreateGroupInviteRequest(userId);
 
       try
@@ -113,7 +109,7 @@ public class UserManager : Registry<User>, IManager
     {
       List<string> msg = new()
       {
-        $"Użytkownik **{data.DisplayName}** (`{userId}`) dołączył na instancje",
+        $"Użytkownik **{data.DisplayName}** (`{userId}`) dołączył na instancje (ID: *{data.CurrentInstanceId}*)",
         $"Pierwszy raz dołączył w <t:{data.JoinedAt}:F>",
         "",
         $"To jest jego {data.VisitCount} wejście, ostatnio był widziany w <t:{data.LastVisit}:F> (<t:{data.LastVisit}:R>)",
@@ -168,7 +164,7 @@ public class UserManager : Registry<User>, IManager
     {
       List<string> msg = new()
       {
-        $"Użytkownik **{data.DisplayName}** (`{userId}`) opuścił instancje"
+        $"Użytkownik **{data.DisplayName}** (`{userId}`) opuścił instancje (ID: *{data.CurrentInstanceId}*)"
       };
 
       _ = _discordManager!.SendEmbed("Użytkownicy", String.Join("\n", msg));
