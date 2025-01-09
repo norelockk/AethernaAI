@@ -58,7 +58,7 @@ public class UserManager : IManager
       return;
     }
 
-    if (!IsUserInGroup(userId))
+    if (!IsUserInGroup(userId) && !IsUserGroupInvited(userId))
     {
       var groupInvite = new CreateGroupInviteRequest(userId);
 
@@ -111,7 +111,7 @@ public class UserManager : IManager
         $"To jest jego {data.VisitCount} wejście, ostatnio był widziany w <t:{data.LastVisit}:F> (<t:{data.LastVisit}:R>)",
       };
 
-      _discordManager!.SendEmbed("Użytkownicy", String.Join("\n", msg));
+      _ = _discordManager!.SendEmbed("Użytkownicy", String.Join("\n", msg));
     }
   }
 
@@ -159,7 +159,7 @@ public class UserManager : IManager
         $"Użytkownik {data.DisplayName} (`{userId}`) opuścił instancje"
       };
 
-      _discordManager!.SendEmbed("Użytkownicy", String.Join("\n", msg));
+      _ = _discordManager!.SendEmbed("Użytkownicy", String.Join("\n", msg));
     }
   }
 

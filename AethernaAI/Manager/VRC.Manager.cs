@@ -8,6 +8,8 @@ using AethernaAI.Module.Internal;
 using static AethernaAI.Addresses;
 using static AethernaAI.Constants;
 using Logger = AethernaAI.Util.Logger;
+using Newtonsoft.Json;
+using System.Text;
 
 namespace AethernaAI.Manager;
 
@@ -117,6 +119,41 @@ public class VRCManager : ApiClient, IAsyncManager
     _oscMessage = _core.Config.GetConfig<List<string>?>(c => c.VrchatOscMessage!);
   }
 
+  #region prototype
+  public async Task SendModeration(VRCModeration data)
+  {
+    using (var client = new HttpClient())
+    {
+      client.BaseAddress = new Uri($"{_vrcConfig.BasePath}/user/{data.TargetUserId}/moderations");
+      string cookieStr = string.Empty;
+
+      var cookies = CookieContainer.GetAllCookies().ToList();
+      foreach (var cookie in cookies)
+        cookieStr += $"{cookie.Name}={cookie.Value};";
+
+      if (!string.IsNullOrEmpty(cookieStr))
+        client.DefaultRequestHeaders.Add("Cookie", cookieStr);
+
+      client.DefaultRequestHeaders.Add("User-Agent", $"Eqipa/{VERSION} norelock");
+
+      var json = JsonConvert.SerializeObject(data);
+      var content = new StringContent(json, Encoding.UTF8, "application/json");
+      var response = await client.PostAsync(client.BaseAddress, content);
+      
+      var raw = await response.Content.ReadAsStringAsync();
+
+      if (response.IsSuccessStatusCode)
+      {
+        Logger.Log(LogLevel.Debug, $"Moderation response: {raw}");
+      }
+      else
+      {
+        Logger.Log(LogLevel.Debug, $"Error sending moderation: {response.StatusCode}, {raw}");
+      }
+    }
+  }
+  #endregion
+
   private void Login()
   {
     try
@@ -170,7 +207,7 @@ public class VRCManager : ApiClient, IAsyncManager
     if (_isInitialized)
       throw new ManagerAlreadyInitializedException(GetType());
 
-    // crash or smth = also status to offline
+    // crash or smth earlier = also status to offline
     _core.Registry.Users.UpdateAll(user =>
     {
       if (user.Status is Model.UserStatus.Online)
@@ -200,6 +237,14 @@ public class VRCManager : ApiClient, IAsyncManager
       try
       {
         await UpdateOsc();
+        // await SendModeration(new() {
+        //   Type = "warn",
+        //   Reason = "test",
+        //   WorldId = _worldId,
+        //   InstanceId = "EqipaPoland~group(grp_2e1917ed-0f8d-4075-8098-5919a37c8f43)~groupAccessType(public)~region(eu)",
+        //   IsPermanent = false,
+        //   TargetUserId = "usr_56f0cd95-e51a-40c7-8746-dcd75baf8497"
+        // });
       }
       catch (Exception ex)
       {
