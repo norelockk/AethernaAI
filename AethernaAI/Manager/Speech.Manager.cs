@@ -1,6 +1,5 @@
 using AethernaAI.Util;
 using AethernaAI.Model;
-using AethernaAI.Module;
 
 namespace AethernaAI.Manager;
 

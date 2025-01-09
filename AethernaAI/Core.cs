@@ -1,6 +1,5 @@
 using AethernaAI.Manager;
 using AethernaAI.Model;
-using AethernaAI.Service;
 using AethernaAI.Util;
 
 namespace AethernaAI;
@@ -14,8 +13,7 @@ public class Core : Singleton<Core>, IDisposable
   }
 
   public readonly EventEmitter Bus = new();
-  public readonly ConfigService Config = new();
-  public readonly RegistryService Registry = new();
+  public readonly Config Config = new();
 
   private readonly Dictionary<Type, IManager> _managers = new();
   private readonly CancellationTokenSource _updateLoopCancellation = new();

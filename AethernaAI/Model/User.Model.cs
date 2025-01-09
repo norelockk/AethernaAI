@@ -85,4 +85,7 @@ public class User
 
   [JsonProperty("lastAvatars")]
   public List<UserAvatar>? LastAvatars { get; set; } = new(); // empty array = []
+
+  [JsonProperty("currentInstanceId")]
+  public string? CurrentInstanceId { get; set; } = null;
 }

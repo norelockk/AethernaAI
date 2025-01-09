@@ -17,7 +17,6 @@ public interface IAsyncManager : IManager
   virtual Task UpdateAsync() => Task.CompletedTask;
 }
 
-// Exception classes remain unchanged
 public class ManagerNotFoundException : Exception
 {
   public ManagerNotFoundException(Type type)

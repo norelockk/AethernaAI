@@ -3,16 +3,14 @@ using AethernaAI.Model;
 using AethernaAI.Module.Internal;
 using VRChat.API.Model;
 using VRChat.API.Client;
-using AethernaAI.Service;
 using User = AethernaAI.Model.User;
 using UserStatus = AethernaAI.Model.UserStatus;
 
 namespace AethernaAI.Manager;
 
-public class UserManager : IManager
+public class UserManager : Registry<User>, IManager
 {
   private readonly Core _core;
-  private readonly Registry<User> _registry;
 
   private bool _isInitialized = false;
   private bool _isDisposed = false;
@@ -33,7 +31,7 @@ public class UserManager : IManager
     return false;
   }
 
-  private bool IsUserInGroup(string userId)
+  public bool IsUserInGroup(string userId)
   {
     if (!_vrcManager!.IsLogged)
       return true;
@@ -50,6 +48,9 @@ public class UserManager : IManager
 
   private void UserJoined(string userId)
   {
+    if (!_vrcManager!.IsLogged)
+      return;
+
     var now = DateUtil.ToUnixTime(DateTime.Now);
     var user = _vrcManager!.Users!.GetUser(userId);
     if (user is null)
@@ -72,9 +73,9 @@ public class UserManager : IManager
       }
     }
 
-    if (!_registry.Has(userId))
+    if (!Has(userId))
     {
-      _registry.Save(userId, new()
+      Save(userId, new()
       {
         Id = userId,
         Status = UserStatus.Online,
@@ -88,24 +89,25 @@ public class UserManager : IManager
     }
     else
     {
-      _registry.Update(userId, data =>
+      Update(userId, data =>
       {
         if (data.Status is not UserStatus.Online)
-          data.Status = UserStatus.Online;
+        {
+          if (data.DisplayName is null || data.DisplayName != user.DisplayName)
+            data.DisplayName = user.DisplayName;
 
-        if (data.DisplayName is null || data.DisplayName != user.DisplayName)
-          data.DisplayName = user.DisplayName;
-
-        data.VisitCount++;
+          data.Status = UserStatus.Online; 
+          data.VisitCount++;
+        }
       });
     }
 
-    var data = _registry.Get(userId);
+    var data = Get(userId);
     if (data is not null)
     {
       List<string> msg = new()
       {
-        $"Użytkownik {user.DisplayName} (`{userId}`) dołączył na instancje",
+        $"Użytkownik **{data.DisplayName}** (`{userId}`) dołączył na instancje",
         $"Pierwszy raz dołączył w <t:{data.JoinedAt}:F>",
         "",
         $"To jest jego {data.VisitCount} wejście, ostatnio był widziany w <t:{data.LastVisit}:F> (<t:{data.LastVisit}:R>)",
@@ -117,9 +119,12 @@ public class UserManager : IManager
 
   private void UserLeft(string userId)
   {
+    if (!_vrcManager!.IsLogged)
+      return;
+      
     var now = DateUtil.ToUnixTime(DateTime.Now);
 
-    if (!_registry.Has(userId))
+    if (!Has(userId))
     {
       var user = _vrcManager!.Users!.GetUser(userId);
       if (user is null)
@@ -128,7 +133,7 @@ public class UserManager : IManager
         return;
       }
 
-      _registry.Save(userId, new()
+      Save(userId, new()
       {
         Id = userId,
         Status = UserStatus.Offline,
@@ -142,28 +147,62 @@ public class UserManager : IManager
     }
     else
     {
-      _registry.Update(userId, data =>
+      Update(userId, data =>
       {
         if (data.Status is not UserStatus.Offline)
+        { 
           data.Status = UserStatus.Offline;
-
-        data.LastVisit = now;
+          data.LastVisit = now;
+        }
       });
     }
 
-    var data = _registry.Get(userId);
+    var data = Get(userId);
     if (data is not null)
     {
       List<string> msg = new()
       {
-        $"Użytkownik {data.DisplayName} (`{userId}`) opuścił instancje"
+        $"Użytkownik **{data.DisplayName}** (`{userId}`) opuścił instancje"
       };
 
       _ = _discordManager!.SendEmbed("Użytkownicy", String.Join("\n", msg));
     }
   }
 
-  private void Process(object? sender, ProcessedEventArgs data)
+  private VRCManager? _vrcManager;
+  private DiscordManager? _discordManager;
+
+  public bool IsInitialized => _isInitialized;
+
+  public UserManager(Core core) : base("users")
+  {
+    _core = core ?? throw new ArgumentNullException(nameof(core));
+    _groupId = _core.Config.GetConfig<string?>(c => c.VrchatGroupId!);
+
+    UpdateAll(user =>
+    {
+      if (user.Status is UserStatus.Online)
+      {
+        user.Status = UserStatus.Offline;
+        user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
+      }
+    });
+
+    if (_core.HasManager<VRCManager>()) _vrcManager = _core.GetManagerOrDefault<VRCManager>();
+    if (_core.HasManager<DiscordManager>()) _discordManager = _core.GetManagerOrDefault<DiscordManager>();
+  }
+
+  public void Initialize()
+  {
+    if (_isInitialized)
+      throw new ManagerAlreadyInitializedException(GetType());
+
+    _vrcManager!.LogReader!.OnProcessed += Process;
+
+    _isInitialized = true;
+  }
+
+  private protected void Process(object? sender, ProcessedEventArgs data)
   {
     switch (data.Action)
     {
@@ -181,35 +220,18 @@ public class UserManager : IManager
     }
   }
 
-  private VRCManager? _vrcManager;
-  private DiscordManager? _discordManager;
-
-  public bool IsInitialized => _isInitialized;
-
-  public UserManager(Core core)
-  {
-    _core = core ?? throw new ArgumentNullException(nameof(core));
-    _registry = _core.Registry.Users;
-
-    _groupId = _core.Config.GetConfig<string?>(c => c.VrchatGroupId!);
-
-    if (_core.HasManager<VRCManager>()) _vrcManager = _core.GetManagerOrDefault<VRCManager>();
-    if (_core.HasManager<DiscordManager>()) _discordManager = _core.GetManagerOrDefault<DiscordManager>();
-  }
-
-  public void Initialize()
-  {
-    if (_isInitialized)
-      throw new ManagerAlreadyInitializedException(GetType());
-
-    _vrcManager!.LogReader!.OnProcessed += Process;
-
-    _isInitialized = true;
-  }
-
   public void Shutdown()
   {
     if (!_isInitialized) return;
+
+    UpdateAll(user =>
+    {
+      if (user.Status is UserStatus.Online)
+      {
+        user.Status = UserStatus.Offline;
+        user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
+      }
+    });
 
     _isInitialized = false;
     Logger.Log(LogLevel.Info, "UserManager shutdown");

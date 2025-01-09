@@ -1,3 +1,5 @@
+using System.Text;
+using Newtonsoft.Json;
 using VRChat.API.Api;
 using VRChat.API.Model;
 using VRChat.API.Client;
@@ -8,8 +10,7 @@ using AethernaAI.Module.Internal;
 using static AethernaAI.Addresses;
 using static AethernaAI.Constants;
 using Logger = AethernaAI.Util.Logger;
-using Newtonsoft.Json;
-using System.Text;
+using Configuration = VRChat.API.Client.Configuration;
 
 namespace AethernaAI.Manager;
 
@@ -75,6 +76,7 @@ public class VRCManager : ApiClient, IAsyncManager
   private bool _isDisposed;
   private int _groupUsers;
   private int _groupMaxUsers;
+  private UserManager? _userManager;
 
   private bool _isInitialized;
   private DateTime _lastOSCUpdate = DateTime.MinValue;
@@ -139,7 +141,7 @@ public class VRCManager : ApiClient, IAsyncManager
       var json = JsonConvert.SerializeObject(data);
       var content = new StringContent(json, Encoding.UTF8, "application/json");
       var response = await client.PostAsync(client.BaseAddress, content);
-      
+
       var raw = await response.Content.ReadAsStringAsync();
 
       if (response.IsSuccessStatusCode)
@@ -182,6 +184,9 @@ public class VRCManager : ApiClient, IAsyncManager
           Group = Groups!.GetGroup(_groupId, true);
           UpdateInfo();
 
+          if (_core.HasManager<UserManager>())
+            _userManager = _core.GetManagerOrDefault<UserManager>();
+
           _isLogged = true;
 
           Logger.Log(LogLevel.Info, $"API is working");
@@ -207,20 +212,10 @@ public class VRCManager : ApiClient, IAsyncManager
     if (_isInitialized)
       throw new ManagerAlreadyInitializedException(GetType());
 
-    // crash or smth earlier = also status to offline
-    _core.Registry.Users.UpdateAll(user =>
-    {
-      if (user.Status is Model.UserStatus.Online)
-      {
-        user.Status = Model.UserStatus.Offline;
-        user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
-      }
-    });
-
     Login();
 
-    OSC = new VRCOsc(_core);
-    LogReader = new VRCLogReader(_core);
+    OSC = new(_core);
+    LogReader = new(_core);
 
     _isInitialized = true;
   }
@@ -230,10 +225,10 @@ public class VRCManager : ApiClient, IAsyncManager
     if (!_isInitialized || _isDisposed)
       return;
 
+    _groupUsers = _userManager!.GetCountByCondition(u => u.Status is Model.UserStatus.Online);
+
     if ((DateTime.UtcNow - _lastOSCUpdate).TotalSeconds >= 5)
     {
-       _groupUsers = _core.Registry.Users.GetCountByCondition(user => user.Status is Model.UserStatus.Online);
-
       try
       {
         await UpdateOsc();
@@ -272,16 +267,6 @@ public class VRCManager : ApiClient, IAsyncManager
   public void Shutdown()
   {
     if (!_isInitialized) return;
-
-    // make all users offline properly
-    _core.Registry.Users.UpdateAll(user =>
-    {
-      if (user.Status is Model.UserStatus.Online)
-      {
-        user.Status = Model.UserStatus.Offline;
-        user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
-      }
-    });
 
     _isInitialized = false;
     Logger.Log(LogLevel.Info, "VRCManager shutdown");

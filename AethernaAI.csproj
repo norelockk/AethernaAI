@@ -16,14 +16,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DebugType>none</DebugType>
   </PropertyGroup>
-  <ItemGroup>
-    <Compile Remove="AethernaAI\Component\**" />
-    <Compile Remove="AethernaAI\Enum\**" />
-    <EmbeddedResource Remove="AethernaAI\Component\**" />
-    <EmbeddedResource Remove="AethernaAI\Enum\**" />
-    <None Remove="AethernaAI\Component\**" />
-    <None Remove="AethernaAI\Enum\**" />
-  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="LucHeart.CoreOSC" Version="1.4.0" />
     <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.42.0" />
@@ -35,13 +28,15 @@
     <PackageReference Include="OscQueryLibrary" Version="1.1.2" />
     <PackageReference Include="VRChat.API" Version="1.18.8" />
   </ItemGroup>
+
   <ItemGroup>
     <Folder Include="AethernaAI\Model\" />
+    <Folder Include="AethernaAI\Module\" />
     <Folder Include="AethernaAI\Dialogs\" />
     <Folder Include="AethernaAI\Manager\" />
-    <Folder Include="AethernaAI\Service\" />
     <Folder Include="AethernaAI\Module\Internal\" />
   </ItemGroup>
+
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Exec Command="echo Release@@Any CPU&#xD;&#xA;if &quot;$(ConfigurationName)&quot; == &quot;Release&quot; (if &quot;$(PlatformName)&quot; == &quot;AnyCPU&quot; (&quot;$(ProjectDir)_Obfuscar\Obfuscar.Console.exe&quot; &quot;$(ProjectDir)_Obfuscar\obfuscar_Release_Any_CPU.xml&quot;&#xD;&#xA;xcopy /e /v &quot;$(ProjectDir)bin\Release\net8.0-windows\\Out\&quot; &quot;$(ProjectDir)bin\Release\net8.0-windows\&quot; /Y))" />
   </Target>

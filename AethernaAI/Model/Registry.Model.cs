@@ -1,7 +1,7 @@
 using Newtonsoft.Json;
 using AethernaAI.Util;
 
-namespace AethernaAI.Service;
+namespace AethernaAI.Model;
 
 public class Registry<T> where T : class, new()
 {
@@ -46,7 +46,6 @@ public class Registry<T> where T : class, new()
         var serialized = JsonConvert.SerializeObject(item, Formatting.Indented);
         var deserialized = JsonConvert.DeserializeObject<T>(serialized) ?? new T();
 
-        // Check if there are missing or mismatched fields
         var currentFields = typeof(T).GetProperties();
         var deserializedFields = typeof(T).GetProperties();
 
@@ -103,11 +102,11 @@ public class Registry<T> where T : class, new()
 
   public void UpdateAll(Action<T> updateAction)
   {
-    foreach (var id in _cache.Keys.ToList())  // Iterate through all cached items
+    foreach (var id in _cache.Keys.ToList())
     {
       var item = _cache[id];
-      updateAction(item);   // Apply the update action
-      Save(id, item);       // Save the updated item back to file and cache
+      updateAction(item);
+      Save(id, item);
     }
 
     Logger.Log(LogLevel.Info, $"Updated all entities.");
@@ -144,10 +143,4 @@ public class Registry<T> where T : class, new()
   {
     return _cache.Values.Where(condition).ToList();
   }
-}
-
-public class RegistryService
-{
-  public Registry<Model.User> Users { get; } = new("users");
-  // public Registry<Avatar> Avatars { get; } = new("Avatars");
 }

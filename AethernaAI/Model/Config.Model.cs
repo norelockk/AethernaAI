@@ -1,8 +1,10 @@
+using System.Linq.Expressions;
+using AethernaAI.Util;
 using Newtonsoft.Json;
 
 namespace AethernaAI.Model;
 
-public class ConfigModel
+public class Configuration
 {
   [JsonProperty("gpt.api")]
   public string? GptApi { get; set; } = "http://195.179.227.219:1337/v1";
@@ -36,4 +38,105 @@ public class ConfigModel
 
   [JsonProperty("speechRecognizer.language")]
   public RecognizeLang SpeechRecognizerLanguage { get; set; } = RecognizeLang.Polish;
+}
+
+public class Config
+{
+  private readonly string configFilePath = "config.json";
+  private Configuration? _configuration;
+
+  public Config()
+  {
+    if (!File.Exists(configFilePath))
+    {
+      CreateDefaultConfig();
+      Logger.Log(LogLevel.Info, "Config file created");
+    }
+    LoadConfig();
+  }
+
+  private void CreateDefaultConfig()
+  {
+    _configuration = new Configuration();
+    SaveConfig();
+  }
+
+  private void LoadConfig()
+  {
+    var configJson = File.ReadAllText(configFilePath);
+    _configuration = JsonConvert.DeserializeObject<Configuration>(configJson);
+
+    UpdateConfig();
+  }
+
+  private void SaveConfig()
+  {
+    var configJson = JsonConvert.SerializeObject(_configuration, Formatting.Indented);
+    File.WriteAllText(configFilePath, configJson);
+  }
+
+  private void UpdateConfig()
+  {
+    var configJson = File.ReadAllText(configFilePath);
+    var config = JsonConvert.DeserializeObject<Configuration>(configJson);
+    var properties = typeof(Configuration).GetProperties();
+    foreach (var property in properties)
+    {
+      if (property.GetValue(config) == null)
+      {
+        property.SetValue(config, property.GetValue(_configuration));
+      }
+    }
+    _configuration = config;
+    SaveConfig();
+  }
+
+  public T GetConfig<T>(Expression<Func<Configuration, T>> keySelector)
+  {
+    if (keySelector == null)
+    {
+      throw new ArgumentNullException(nameof(keySelector));
+    }
+
+    var memberExpression = keySelector.Body as MemberExpression;
+    if (memberExpression == null || _configuration == null)
+    {
+      throw new ArgumentException("Invalid key selector or Config is null.");
+    }
+
+    var property = memberExpression.Member as System.Reflection.PropertyInfo;
+    if (property == null)
+    {
+      throw new ArgumentException("Key selector does not refer to a property.");
+    }
+
+    var value = property.GetValue(_configuration);
+
+    return (T)value!;
+  }
+
+  public T SetConfig<T>(Expression<Func<Configuration, T>> keySelector, T value)
+  {
+    if (keySelector == null)
+    {
+      throw new ArgumentNullException(nameof(keySelector));
+    }
+
+    var memberExpression = keySelector.Body as MemberExpression;
+    if (memberExpression == null || _configuration == null)
+    {
+      throw new ArgumentException("Invalid key selector or Config is null.");
+    }
+
+    var property = memberExpression.Member as System.Reflection.PropertyInfo;
+    if (property == null)
+    {
+      throw new ArgumentException("Key selector does not refer to a property.");
+    }
+
+    property.SetValue(_configuration, value);
+    SaveConfig();
+
+    return value;
+  }
 }
