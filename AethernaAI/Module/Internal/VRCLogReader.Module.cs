@@ -234,7 +234,7 @@ public class VRCLogReader
     {
       if (!ProcessLine(processId, line)) // Process line per Process ID
       {
-        Console.WriteLine(line); // Default output for unprocessed lines
+        // Console.WriteLine(line); // Default output for unprocessed lines
       }
     }
   }
@@ -302,10 +302,13 @@ public class VRCLogReader
             { "resetInstance", RESETTING_GAME_FLOW.Match(line) }
         };
 
+    var eventData = new Dictionary<string, object>();
+    eventData.Add("ProcessId", processId);
+
     if (_matched.Any(x => x.Value.Success))
     {
       string action = _matched.First(x => x.Value.Success).Key;
-      var eventData = new Dictionary<string, object>(); // Store arbitrary data
+      eventData.Add("Action", action);
 
       switch (action)
       {
@@ -317,9 +320,7 @@ public class VRCLogReader
 
             Logger.Log(LogLevel.Debug, $"User {displayName} ({userId}) {action}");
 
-            eventData.Add("Action", action);
             eventData.Add("UserId", userId);
-            eventData.Add("ProcessId", processId);
             eventData.Add("DisplayName", displayName);
 
             OnProcessed?.Invoke(this, new ProcessedEventArgs(action, eventData));
@@ -333,7 +334,6 @@ public class VRCLogReader
 
             Logger.Log(LogLevel.Debug, $"User {username} ({userId}) spawned sticker {stickerId}");
 
-            eventData.Add("ProcessId", processId);
             eventData.Add("UserId", userId);
             eventData.Add("Username", username);
             eventData.Add("StickerId", stickerId);
@@ -352,7 +352,6 @@ public class VRCLogReader
 
             Logger.Log(LogLevel.Debug, $"Join: WorldId={worldId}, WorldName={worldName}, GroupId={groupId}, worldAccessType={worldAccessType}, Region={region}");
 
-            eventData.Add("ProcessId", processId);
             eventData.Add("WorldId", worldId);
             eventData.Add("WorldName", worldName);
             eventData.Add("WorldAccessType", worldAccessType);
@@ -366,7 +365,6 @@ public class VRCLogReader
         default:
           {
             Logger.Log(LogLevel.Warn, $"Unknown action: {action}");
-            eventData.Add("ProcessId", processId);
             OnProcessed?.Invoke(this, new ProcessedEventArgs(action, eventData));
             break;
           }

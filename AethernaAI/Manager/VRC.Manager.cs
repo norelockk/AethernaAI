@@ -1,5 +1,4 @@
-using System.Text;
-using Newtonsoft.Json;
+using System.Net;
 using VRChat.API.Api;
 using VRChat.API.Model;
 using VRChat.API.Client;
@@ -11,7 +10,6 @@ using static AethernaAI.Addresses;
 using static AethernaAI.Constants;
 using Logger = AethernaAI.Util.Logger;
 using Configuration = VRChat.API.Client.Configuration;
-using System.Net;
 
 namespace AethernaAI.Manager;
 

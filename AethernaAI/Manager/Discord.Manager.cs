@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using AethernaAI.Util;
 using AethernaAI.Model;
 using static AethernaAI.Util.ColorUtil;
+using Swan;
 
 namespace AethernaAI.Manager;
 
@@ -56,6 +57,8 @@ public class DiscordManager : IManager
           }
         }
     };
+
+    Console.WriteLine(embed.ToJson());
 
     var response = await _httpClient!.PostAsJsonAsync(_webhookUrl, embed);
     if (!response.IsSuccessStatusCode)

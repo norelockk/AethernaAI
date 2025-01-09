@@ -1,3 +1,4 @@
+using System.Text;
 using Newtonsoft.Json;
 using AethernaAI.Util;
 using AethernaAI.Model;
@@ -7,7 +8,6 @@ using VRChat.API.Client;
 using User = AethernaAI.Model.User;
 using UserStatus = AethernaAI.Model.UserStatus;
 using static AethernaAI.Constants;
-using System.Text;
 
 namespace AethernaAI.Manager;
 
@@ -38,8 +38,11 @@ public class UserManager : Registry<User>, IManager
       }
     });
 
-    if (_core.HasManager<VRCManager>()) _vrcManager = _core.GetManagerOrDefault<VRCManager>();
-    if (_core.HasManager<DiscordManager>()) _discordManager = _core.GetManagerOrDefault<DiscordManager>();
+    if (_core.HasManager<VRCManager>())
+      _vrcManager = _core.GetManagerOrDefault<VRCManager>();
+
+    if (_core.HasManager<DiscordManager>())
+      _discordManager = _core.GetManagerOrDefault<DiscordManager>();
   }
 
   public void Initialize()
@@ -97,19 +100,17 @@ public class UserManager : Registry<User>, IManager
     if (!_vrcManager!.IsLogged)
       return;
 
-    var userId = data.Data["UserId"].ToString() ?? "";
-
     switch (data.Action)
     {
       case "joined":
         {
-          UserJoined(userId);
+          UserJoined(data.Data["UserId"].ToString()!);
           break;
         }
 
       case "left":
         {
-          UserLeft(userId);
+          UserLeft(data.Data["UserId"].ToString()!);
           break;
         }
     }
@@ -178,7 +179,7 @@ public class UserManager : Registry<User>, IManager
     {
       List<string> msg = new()
       {
-        $"Użytkownik **{data.DisplayName}** (`{userId}`) dołączył na instancje (ID: *{data.CurrentInstanceId}*)",
+        $"Użytkownik ``{data.DisplayName}`` (``{userId}``) dołączył na instancje",
         $"Pierwszy raz dołączył w <t:{data.JoinedAt}:F>",
         "",
         $"To jest jego {data.VisitCount} wejście, ostatnio był widziany w <t:{data.LastVisit}:F> (<t:{data.LastVisit}:R>)",
@@ -233,7 +234,7 @@ public class UserManager : Registry<User>, IManager
     {
       List<string> msg = new()
       {
-        $"Użytkownik **{data.DisplayName}** (`{userId}`) opuścił instancje (ID: *{data.CurrentInstanceId}*)"
+        $"Użytkownik ``{data.DisplayName}`` (``{userId}``) opuścił instancje"
       };
 
       _ = _discordManager!.SendEmbed("Użytkownicy", String.Join("\n", msg));
@@ -263,8 +264,7 @@ public class UserManager : Registry<User>, IManager
     var invites = _vrcManager!.Groups!.GetGroupInvites(_groupId, 100);
     foreach (var invite in invites)
     {
-      Console.WriteLine(invite.ToJson());
-      if (invite.UserId == userId)
+      if (invite.User.Id == userId)
         return true;
     }
 
