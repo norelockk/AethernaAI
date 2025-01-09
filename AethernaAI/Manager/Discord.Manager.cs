@@ -1,6 +1,7 @@
+using System.Net.Http.Json;
 using AethernaAI.Util;
 using AethernaAI.Model;
-using System.Net.Http.Json;
+using static AethernaAI.Util.Color;
 
 namespace AethernaAI.Manager;
 
@@ -51,7 +52,7 @@ public class DiscordManager : IManager
             title = title,
             color = ConvertHexToDecimalColor(colorHex),
             timestamp = DateTime.UtcNow.ToString("o"),
-            description = description,
+            description = description
           }
         }
     };
@@ -61,12 +62,6 @@ public class DiscordManager : IManager
     {
       Logger.Log(LogLevel.Error, $"Failed to send embed to Discord: {response.StatusCode}");
     }
-  }
-
-  private int ConvertHexToDecimalColor(string? colorHex)
-  {
-    if (string.IsNullOrEmpty(colorHex) || !colorHex.StartsWith("#")) return 0x5865F2; // Default Discord blue
-    return int.Parse(colorHex.Substring(1), System.Globalization.NumberStyles.HexNumber);
   }
 
   public void Shutdown()
