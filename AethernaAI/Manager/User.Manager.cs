@@ -1,3 +1,4 @@
+using Newtonsoft.Json;
 using AethernaAI.Util;
 using AethernaAI.Model;
 using AethernaAI.Module.Internal;
@@ -5,6 +6,8 @@ using VRChat.API.Model;
 using VRChat.API.Client;
 using User = AethernaAI.Model.User;
 using UserStatus = AethernaAI.Model.UserStatus;
+using static AethernaAI.Constants;
+using System.Text;
 
 namespace AethernaAI.Manager;
 
@@ -14,39 +17,105 @@ public class UserManager : Registry<User>, IManager
 
   private bool _isInitialized = false;
   private bool _isDisposed = false;
-  private string? _groupId;
+  private string? _groupId = string.Empty;
 
-  private bool IsUserGroupInvited(string userId)
+  private VRCManager? _vrcManager;
+  private DiscordManager? _discordManager;
+
+  public bool IsInitialized => _isInitialized;
+
+  public UserManager(Core core) : base("users")
   {
-    if (!_vrcManager!.IsLogged)
-      return true;
+    _core = core ?? throw new ArgumentNullException(nameof(core));
+    _groupId = _core.Config.GetConfig<string?>(c => c.VrchatGroupId!);
 
-    var invites = _vrcManager!.Groups!.GetGroupInvites(_groupId);
-    foreach (var invite in invites)
+    UpdateAll(user =>
     {
-      if (invite.UserId == userId)
-        return true;
-    }
+      if (user.Status is UserStatus.Online)
+      {
+        user.Status = UserStatus.Offline;
+        user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
+      }
+    });
 
-    return false;
+    if (_core.HasManager<VRCManager>()) _vrcManager = _core.GetManagerOrDefault<VRCManager>();
+    if (_core.HasManager<DiscordManager>()) _discordManager = _core.GetManagerOrDefault<DiscordManager>();
   }
 
-  public bool IsUserInGroup(string userId)
+  public void Initialize()
   {
-    if (!_vrcManager!.IsLogged)
-      return true;
+    if (_isInitialized)
+      throw new ManagerAlreadyInitializedException(GetType());
 
-    var userGroups = _vrcManager!.Users!.GetUserGroups(userId);
-    foreach (var group in userGroups)
-    {
-      if (group.GroupId == _groupId)
-        return true;
-    }
+    _vrcManager!.LogReader!.OnProcessed += Process;
 
-    return false;
+    _isInitialized = true;
   }
 
-  private void UserJoined(string userId)
+  public void Shutdown()
+  {
+    if (!_isInitialized) return;
+
+    UpdateAll(user =>
+    {
+      if (user.Status is UserStatus.Online)
+      {
+        user.Status = UserStatus.Offline;
+        user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
+      }
+    });
+
+    _isInitialized = false;
+    Logger.Log(LogLevel.Info, "UserManager shutdown");
+  }
+
+  public void Dispose()
+  {
+    Dispose(true);
+    GC.SuppressFinalize(this);
+  }
+
+  protected virtual void Dispose(bool disposing)
+  {
+    if (_isDisposed) return;
+
+    if (disposing)
+    {
+      Shutdown();
+    }
+
+    _isDisposed = true;
+  }
+
+  ~UserManager()
+  {
+    Dispose(false);
+  }
+
+  private protected void Process(object? sender, ProcessedEventArgs data)
+  {
+    if (!_vrcManager!.IsLogged)
+      return;
+
+    var userId = data.Data["UserId"].ToString() ?? "";
+
+    switch (data.Action)
+    {
+      case "joined":
+        {
+          UserJoined(userId);
+          break;
+        }
+
+      case "left":
+        {
+          UserLeft(userId);
+          break;
+        }
+    }
+  }
+
+  private protected void UserJoined(string userId)
   {
     if (!_vrcManager!.IsLogged)
       return;
@@ -98,7 +167,7 @@ public class UserManager : Registry<User>, IManager
           if (data.DisplayName is null || data.DisplayName != user.DisplayName)
             data.DisplayName = user.DisplayName;
 
-          data.Status = UserStatus.Online; 
+          data.Status = UserStatus.Online;
           data.VisitCount++;
         }
       });
@@ -119,11 +188,11 @@ public class UserManager : Registry<User>, IManager
     }
   }
 
-  private void UserLeft(string userId)
+  private protected void UserLeft(string userId)
   {
     if (!_vrcManager!.IsLogged)
       return;
-      
+
     var now = DateUtil.ToUnixTime(DateTime.Now);
 
     if (!Has(userId))
@@ -152,7 +221,7 @@ public class UserManager : Registry<User>, IManager
       Update(userId, data =>
       {
         if (data.Status is not UserStatus.Offline)
-        { 
+        {
           data.Status = UserStatus.Offline;
           data.LastVisit = now;
         }
@@ -171,94 +240,70 @@ public class UserManager : Registry<User>, IManager
     }
   }
 
-  private VRCManager? _vrcManager;
-  private DiscordManager? _discordManager;
-
-  public bool IsInitialized => _isInitialized;
-
-  public UserManager(Core core) : base("users")
+  private bool IsUserInGroup(string userId)
   {
-    _core = core ?? throw new ArgumentNullException(nameof(core));
-    _groupId = _core.Config.GetConfig<string?>(c => c.VrchatGroupId!);
+    if (!_vrcManager!.IsLogged)
+      return true;
 
-    UpdateAll(user =>
+    var userGroups = _vrcManager!.Users!.GetUserGroups(userId);
+    foreach (var group in userGroups)
     {
-      if (user.Status is UserStatus.Online)
-      {
-        user.Status = UserStatus.Offline;
-        user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
-      }
-    });
-
-    if (_core.HasManager<VRCManager>()) _vrcManager = _core.GetManagerOrDefault<VRCManager>();
-    if (_core.HasManager<DiscordManager>()) _discordManager = _core.GetManagerOrDefault<DiscordManager>();
-  }
-
-  public void Initialize()
-  {
-    if (_isInitialized)
-      throw new ManagerAlreadyInitializedException(GetType());
-
-    _vrcManager!.LogReader!.OnProcessed += Process;
-
-    _isInitialized = true;
-  }
-
-  private protected void Process(object? sender, ProcessedEventArgs data)
-  {
-    switch (data.Action)
-    {
-      case "joined":
-        {
-          UserJoined(data.Data["UserId"].ToString()!);
-          break;
-        }
-
-      case "left":
-        {
-          UserLeft(data.Data["UserId"].ToString()!);
-          break;
-        }
-    }
-  }
-
-  public void Shutdown()
-  {
-    if (!_isInitialized) return;
-
-    UpdateAll(user =>
-    {
-      if (user.Status is UserStatus.Online)
-      {
-        user.Status = UserStatus.Offline;
-        user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
-      }
-    });
-
-    _isInitialized = false;
-    Logger.Log(LogLevel.Info, "UserManager shutdown");
-  }
-
-  public void Dispose()
-  {
-    Dispose(true);
-    GC.SuppressFinalize(this);
-  }
-
-  protected virtual void Dispose(bool disposing)
-  {
-    if (_isDisposed) return;
-
-    if (disposing)
-    {
-      Shutdown();
+      if (group.GroupId == _groupId)
+        return true;
     }
 
-    _isDisposed = true;
+    return false;
   }
 
-  ~UserManager()
+  private bool IsUserGroupInvited(string userId)
   {
-    Dispose(false);
+    if (!_vrcManager!.IsLogged)
+      return true;
+
+    var invites = _vrcManager!.Groups!.GetGroupInvites(_groupId, 100);
+    foreach (var invite in invites)
+    {
+      Console.WriteLine(invite.ToJson());
+      if (invite.UserId == userId)
+        return true;
+    }
+
+    return false;
   }
+  
+  #region prototype
+  public async Task SendModeration(VRCModeration data)
+  {
+    using (var client = new HttpClient())
+    {
+      client.BaseAddress = new Uri($"{_vrcManager!._vrcConfig.BasePath}/user/{data.TargetUserId}/moderations");
+      string cookieStr = string.Empty;
+
+      var cookies = _vrcManager.CookieContainer!.GetAllCookies().ToList();
+      foreach (var cookie in cookies)
+        cookieStr += $"{cookie.Name}={cookie.Value};";
+
+      if (!string.IsNullOrEmpty(cookieStr))
+        client.DefaultRequestHeaders.Add("Cookie", cookieStr);
+
+      client.DefaultRequestHeaders.Add("User-Agent", $"Eqipa/{VERSION} norelock");
+
+      var json = JsonConvert.SerializeObject(data);
+      var content = new StringContent(json, Encoding.UTF8, "application/json");
+      var response = await client.PostAsync(client.BaseAddress, content);
+
+      var raw = await response.Content.ReadAsStringAsync();
+
+      if (response.IsSuccessStatusCode)
+      {
+        Logger.Log(LogLevel.Debug, $"Moderation response: {raw}");
+      }
+      else
+      {
+        Logger.Log(LogLevel.Debug, $"Error sending moderation: {response.StatusCode}, {raw}");
+      }
+    }
+  }
+  #endregion
+
 }

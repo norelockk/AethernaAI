@@ -11,63 +11,16 @@ using static AethernaAI.Addresses;
 using static AethernaAI.Constants;
 using Logger = AethernaAI.Util.Logger;
 using Configuration = VRChat.API.Client.Configuration;
+using System.Net;
 
 namespace AethernaAI.Manager;
 
 public class VRCManager : ApiClient, IAsyncManager
 {
-  #region OSC
-  public static string ReplaceFirst<T>(string input, string search, T replacement)
-  {
-    int index = input.IndexOf(search);
-    if (index < 0)
-      return input;
-
-    return input.Substring(0, index) + replacement + input.Substring(index + search.Length);
-  }
-
-  private string ProcessOscMessage()
-  {
-    string text = string.Empty;
-    foreach (string line in _oscMessage!)
-    {
-      if (string.IsNullOrEmpty(line))
-      {
-        text += "\n";
-        continue;
-      }
-
-      text += line;
-    }
-
-    // TODO: automatic placeholder replacer
-    text = ReplaceFirst(text, "{online}", _groupUsers);
-    text = ReplaceFirst(text, "{maxpi}", _groupMaxUsers);
-    // text = ReplaceFirst()
-
-    return text;
-  }
-
-  private async Task UpdateOsc()
-  {
-    var message = ProcessOscMessage();
-
-    await OSC!.Send(GetOscAddress(VRCOscAddresses.SEND_CHATBOX_MESSAGE), message, true);
-  }
-  #endregion
-
   private readonly Core _core;
   private protected InstancesApi _vrcInstances;
-  private protected Configuration _vrcConfig;
+  public Configuration _vrcConfig;
   private protected AuthenticationApi _vrcAuth;
-
-  private bool RequiresEmail2FA(ApiResponse<CurrentUser> resp)
-  {
-    if (resp.RawContent.Contains("emailOtp"))
-      return true;
-
-    return false;
-  }
 
   private List<string>? _oscMessage;
   private string? _worldId;
@@ -89,13 +42,14 @@ public class VRCManager : ApiClient, IAsyncManager
 
   public CurrentUser? User { get; private set; }
   public VRCLogReader? LogReader { get; private set; }
+  public CookieContainer? CookieContainer { get; private set; }
 
   public bool IsLogged => _isLogged;
   public int GroupUsers => _groupUsers;
   public int GroupMaxUsers => _groupMaxUsers;
   public bool IsInitialized => _isInitialized;
 
-  public VRCManager(Core core)
+  public VRCManager(Core core) : base()
   {
     _core = core ?? throw new ArgumentNullException(nameof(core));
 
@@ -119,92 +73,6 @@ public class VRCManager : ApiClient, IAsyncManager
     _worldId = _core.Config.GetConfig<string?>(c => c.VrchatWorldId!);
     _groupId = _core.Config.GetConfig<string?>(c => c.VrchatGroupId!);
     _oscMessage = _core.Config.GetConfig<List<string>?>(c => c.VrchatOscMessage!);
-  }
-
-  #region prototype
-  public async Task SendModeration(VRCModeration data)
-  {
-    using (var client = new HttpClient())
-    {
-      client.BaseAddress = new Uri($"{_vrcConfig.BasePath}/user/{data.TargetUserId}/moderations");
-      string cookieStr = string.Empty;
-
-      var cookies = CookieContainer.GetAllCookies().ToList();
-      foreach (var cookie in cookies)
-        cookieStr += $"{cookie.Name}={cookie.Value};";
-
-      if (!string.IsNullOrEmpty(cookieStr))
-        client.DefaultRequestHeaders.Add("Cookie", cookieStr);
-
-      client.DefaultRequestHeaders.Add("User-Agent", $"Eqipa/{VERSION} norelock");
-
-      var json = JsonConvert.SerializeObject(data);
-      var content = new StringContent(json, Encoding.UTF8, "application/json");
-      var response = await client.PostAsync(client.BaseAddress, content);
-
-      var raw = await response.Content.ReadAsStringAsync();
-
-      if (response.IsSuccessStatusCode)
-      {
-        Logger.Log(LogLevel.Debug, $"Moderation response: {raw}");
-      }
-      else
-      {
-        Logger.Log(LogLevel.Debug, $"Error sending moderation: {response.StatusCode}, {raw}");
-      }
-    }
-  }
-  #endregion
-
-  private void Login()
-  {
-    try
-    {
-      var u = _vrcAuth.GetCurrentUserWithHttpInfo();
-      var d = new TwoStepDialog(RequiresEmail2FA(u));
-
-      if (d.ShowDialog() == DialogResult.OK)
-      {
-        var code = d.Controls.OfType<TextBox>().First().Text.Trim();
-        if (code == TwoStepDialog._ENTER_CODE || string.IsNullOrWhiteSpace(code))
-        {
-          Logger.Log(LogLevel.Warn, "Verification code not provided, disabling API..");
-          return;
-        }
-
-        Logger.Log(LogLevel.Step, $"Verification code ({code}) has been provided, verifying and enabling API..");
-
-        dynamic result = RequiresEmail2FA(u)
-          ? _vrcAuth.Verify2FAEmailCode(new TwoFactorEmailCode(code))
-          : _vrcAuth.Verify2FA(new TwoFactorAuthCode(code));
-
-        if (result.Verified && !_isLogged)
-        {
-          User = _vrcAuth.GetCurrentUser();
-          Group = Groups!.GetGroup(_groupId, true);
-          UpdateInfo();
-
-          if (_core.HasManager<UserManager>())
-            _userManager = _core.GetManagerOrDefault<UserManager>();
-
-          _isLogged = true;
-
-          Logger.Log(LogLevel.Info, $"API is working");
-        }
-      }
-    }
-    catch (ApiException e)
-    {
-      Logger.Log(LogLevel.Error, $"API login error: {e.Message}");
-    }
-  }
-
-  private void UpdateInfo()
-  {
-    var now = DateUtil.ToUnixTime(DateTime.Now);
-    var instances = Groups!.GetGroupInstances(_groupId);
-
-    _groupMaxUsers = instances.Sum(i => i.World.Capacity);
   }
 
   public void Initialize()
@@ -293,5 +161,103 @@ public class VRCManager : ApiClient, IAsyncManager
   ~VRCManager()
   {
     Dispose(false);
+  }
+  
+  #region OSC
+  public static string ReplaceFirst<T>(string input, string search, T replacement)
+  {
+    int index = input.IndexOf(search);
+    if (index < 0)
+      return input;
+
+    return input.Substring(0, index) + replacement + input.Substring(index + search.Length);
+  }
+
+  private string ProcessOscMessage()
+  {
+    string text = string.Empty;
+    foreach (string line in _oscMessage!)
+    {
+      if (string.IsNullOrEmpty(line))
+      {
+        text += "\n";
+        continue;
+      }
+
+      text += line;
+    }
+
+    // TODO: automatic placeholder replacer
+    text = ReplaceFirst(text, "{online}", _groupUsers);
+    text = ReplaceFirst(text, "{maxpi}", _groupMaxUsers);
+    // text = ReplaceFirst()
+
+    return text;
+  }
+
+  private async Task UpdateOsc()
+  {
+    var message = ProcessOscMessage();
+
+    await OSC!.Send(GetOscAddress(VRCOscAddresses.SEND_CHATBOX_MESSAGE), message, true);
+  }
+  #endregion
+
+  private void Login()
+  {
+    try
+    {
+      var u = _vrcAuth.GetCurrentUserWithHttpInfo();
+      var d = new TwoStepDialog(RequiresEmail2FA(u));
+
+      if (d.ShowDialog() == DialogResult.OK)
+      {
+        var code = d.Controls.OfType<TextBox>().First().Text.Trim();
+        if (code == TwoStepDialog._ENTER_CODE || string.IsNullOrWhiteSpace(code))
+        {
+          Logger.Log(LogLevel.Warn, "Verification code not provided, disabling API..");
+          return;
+        }
+
+        Logger.Log(LogLevel.Step, $"Verification code ({code}) has been provided, verifying and enabling API..");
+
+        dynamic result = RequiresEmail2FA(u)
+          ? _vrcAuth.Verify2FAEmailCode(new TwoFactorEmailCode(code))
+          : _vrcAuth.Verify2FA(new TwoFactorAuthCode(code));
+
+        if (result.Verified && !_isLogged)
+        {
+          User = _vrcAuth.GetCurrentUser();
+          Group = Groups!.GetGroup(_groupId, true);
+
+          if (_core.HasManager<UserManager>())
+            _userManager = _core.GetManagerOrDefault<UserManager>();
+
+          UpdateInfo();
+          _isLogged = true;
+          Logger.Log(LogLevel.Info, $"API is working");
+        }
+      }
+    }
+    catch (ApiException e)
+    {
+      Logger.Log(LogLevel.Error, $"API login error: {e.Message}");
+    }
+  }
+
+  private void UpdateInfo()
+  {
+    var now = DateUtil.ToUnixTime(DateTime.Now);
+    var instances = Groups!.GetGroupInstances(_groupId);
+
+    _groupMaxUsers = instances.Sum(i => i.World.Capacity);
+  }
+
+  private bool RequiresEmail2FA(ApiResponse<CurrentUser> resp)
+  {
+    if (resp.RawContent.Contains("emailOtp"))
+      return true;
+
+    return false;
   }
 }

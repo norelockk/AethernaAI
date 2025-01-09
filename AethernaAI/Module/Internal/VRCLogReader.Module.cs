@@ -234,7 +234,7 @@ public class VRCLogReader
     {
       if (!ProcessLine(processId, line)) // Process line per Process ID
       {
-        // Console.WriteLine(line); // Default output for unprocessed lines
+        Console.WriteLine(line); // Default output for unprocessed lines
       }
     }
   }

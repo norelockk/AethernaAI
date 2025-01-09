@@ -12,6 +12,7 @@ public class VRCInstanceManager : IManager
 
   private UserManager? _userManager;
   private VRCLogReader? _logReader;
+  private DiscordManager? _discordManager;
   private readonly Dictionary<int, VRCInstance> _processInstances = new();
 
   public bool IsInitialized => _isInitialized;
@@ -28,11 +29,9 @@ public class VRCInstanceManager : IManager
 
     _isInitialized = true;
 
-    if (_core.HasManager<VRCManager>())
-      _logReader = _core.GetManagerOrDefault<VRCManager>()!.LogReader;
-
-    if (_core.HasManager<UserManager>())
-      _userManager = _core.GetManagerOrDefault<UserManager>();
+    if (_core.HasManager<VRCManager>()) _logReader = _core.GetManagerOrDefault<VRCManager>()!.LogReader;
+    if (_core.HasManager<UserManager>()) _userManager = _core.GetManagerOrDefault<UserManager>();
+    if (_core.HasManager<DiscordManager>()) _discordManager = _core.GetManagerOrDefault<DiscordManager>();
 
     _logReader!.OnProcessed += OnLogProcessed;
     Logger.Log(LogLevel.Info, "VRCInstanceManager initialized.");
@@ -117,7 +116,10 @@ public class VRCInstanceManager : IManager
         WorldRegion = region,
       };
 
+      var info = _processInstances[processId];
+
       Logger.Log(LogLevel.Info, $"Process {processId} entered {worldAccessType} world {worldName} ({worldId}) in group {groupId}, region {region}.");
+      _ = _discordManager!.SendEmbed($"Uruchomiono monitorowanie instancji {info.GetInstanceId()}", $"ID: {processId}", "#32a852");
     }
     else
     {
@@ -128,6 +130,7 @@ public class VRCInstanceManager : IManager
       instance.WorldType = worldAccessType;
       instance.WorldRegion = region;
 
+      _ = _discordManager!.SendEmbed($"Zmiana monitorowania instancji na {instance.GetInstanceId()}", $"ID: {processId}", "#32a852");
       Logger.Log(LogLevel.Info, $"Process {processId} changed to world {worldName} ({worldId}) in group {groupId}, region {region}.");
     }
   }
@@ -149,6 +152,7 @@ public class VRCInstanceManager : IManager
       instance.WorldRegion = string.Empty;
 
       Logger.Log(LogLevel.Info, $"Process {processId} instance reset.");
+      _ = _discordManager!.SendEmbed($"Resetowanie monitoringu instancji", $"ID: {processId}", "#32a852");
     }
     else
     {
@@ -182,10 +186,12 @@ public class VRCInstanceManager : IManager
 
   public void RemoveProcessInstance(int processId)
   {
-    if (_processInstances.ContainsKey(processId))
-    {
-      _processInstances.Remove(processId);
-      Logger.Log(LogLevel.Info, $"Removed process {processId} from world tracking.");
-    }
+    var processor = GetWorldInstance(processId);
+    if (processor is null)
+      return;
+
+    _processInstances.Remove(processId);
+    Logger.Log(LogLevel.Info, $"Removed process {processId} from world tracking");
+    _ = _discordManager!.SendEmbed($"Wyłączanie monitoringu instancji {processor.GetInstanceId()}", $"ID: {processId}", "#32a852");
   }
 }
