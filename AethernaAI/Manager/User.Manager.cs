@@ -35,6 +35,9 @@ public class UserManager : Registry<User>, IManager
       {
         user.Status = UserStatus.Offline;
         user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
+
+        if (user.CurrentInstanceId is not null)
+          user.CurrentInstanceId = null;
       }
     });
 
@@ -65,6 +68,9 @@ public class UserManager : Registry<User>, IManager
       {
         user.Status = UserStatus.Offline;
         user.LastVisit = DateUtil.ToUnixTime(DateTime.Now);
+
+        if (user.CurrentInstanceId is not null)
+          user.CurrentInstanceId = null;
       }
     });
 

@@ -77,7 +77,7 @@ public class VRCInstanceManager : IManager
     Dispose(false);
   }
 
-  private void OnLogProcessed(object? sender, ProcessedEventArgs e)
+  private void OnLogProcessed(object? sender, ProcessedLogEventArgs e)
   {
     switch (e.Action)
     {
