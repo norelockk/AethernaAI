@@ -22,7 +22,8 @@ public class VRCLogReader
     "Network IDs from Avatar", "is controlled by a curve",
     "Buffer already contains chain", "doesn't have a texture property",
     "Releasing render texture that is set", "Can not play a disabled audio source",
-    "Look rotation viewing vector is zero", "Collision force is restricted on avatars"
+    "Look rotation viewing vector is zero", "Collision force is restricted on avatars",
+    "Holding message"
   };
 
   private readonly HashSet<int> _monitoredProcesses = new();

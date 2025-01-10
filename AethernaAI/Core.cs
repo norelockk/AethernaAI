@@ -194,7 +194,7 @@ public class Core : Singleton<Core>, IDisposable
         }
         catch (Exception ex)
         {
-          Logger.Log(LogLevel.Error, $"Update loop error: {ex.Message}");
+          Logger.Log(LogLevel.Error, $"Update loop error: {ex.Message}\n{ex.StackTrace}");
         }
 
         await Task.Delay(1000, token);

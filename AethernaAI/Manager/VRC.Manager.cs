@@ -25,8 +25,9 @@ public class VRCManager : ApiClient, IAsyncManager
   private string? _groupId;
   private bool _isLogged;
   private bool _isDisposed;
-  private int _groupUsers;
-  private int _groupMaxUsers;
+  private int _groupUsers = 0;
+  private int _groupAdmins = 0;
+  private int _groupMaxUsers = 0;
   private UserManager? _userManager;
 
   private bool _isInitialized;
@@ -43,6 +44,7 @@ public class VRCManager : ApiClient, IAsyncManager
   public CookieContainer? CookieContainer { get; private set; }
 
   public bool IsLogged => _isLogged;
+  public int GroupAdmins => _groupAdmins;
   public int GroupUsers => _groupUsers;
   public int GroupMaxUsers => _groupMaxUsers;
   public bool IsInitialized => _isInitialized;
@@ -91,32 +93,31 @@ public class VRCManager : ApiClient, IAsyncManager
     if (!_isInitialized || _isDisposed)
       return;
 
-    _groupUsers = _userManager!.GetCountByCondition(u => u.Status is Model.UserStatus.Online);
+    _groupUsers = _isLogged ? _userManager!.GetCountByCondition(u => u.Status is Model.UserStatus.Online) : 0;
+    _groupAdmins = _isLogged ? _userManager!.GetCountByCondition(u => u.Admin && u.Status is Model.UserStatus.Online) : 0;
 
     if ((DateTime.UtcNow - _lastOSCUpdate).TotalSeconds >= 5)
     {
+      _lastOSCUpdate = DateTime.UtcNow;
+
       try
       {
         await UpdateOsc();
-        // await SendModeration(new() {
-        //   Type = "warn",
-        //   Reason = "test",
-        //   WorldId = _worldId,
-        //   InstanceId = "EqipaPoland~group(grp_2e1917ed-0f8d-4075-8098-5919a37c8f43)~groupAccessType(public)~region(eu)",
-        //   IsPermanent = false,
-        //   TargetUserId = "usr_56f0cd95-e51a-40c7-8746-dcd75baf8497"
-        // });
+
       }
       catch (Exception ex)
       {
         Logger.Log(LogLevel.Error, $"Error in VRCManager UpdateAsync: {ex.Message}");
       }
-
-      _lastOSCUpdate = DateTime.UtcNow;
     }
 
     if ((DateTime.UtcNow - _lastInfoUpdate).TotalSeconds >= 60)
     {
+      _lastInfoUpdate = DateTime.UtcNow;
+
+      if (!_isLogged)
+        return;
+
       try
       {
         UpdateInfo();
@@ -125,8 +126,6 @@ public class VRCManager : ApiClient, IAsyncManager
       {
         Logger.Log(LogLevel.Error, $"Error in VRCManager UpdateAsync: {ex.Message}");
       }
-
-      _lastInfoUpdate = DateTime.UtcNow;
     }
   }
 
@@ -162,7 +161,7 @@ public class VRCManager : ApiClient, IAsyncManager
   }
   
   #region OSC
-  public static string ReplaceFirst<T>(string input, string search, T replacement)
+  private string ReplaceFirst<T>(string input, string search, T replacement)
   {
     int index = input.IndexOf(search);
     if (index < 0)
@@ -186,8 +185,10 @@ public class VRCManager : ApiClient, IAsyncManager
     }
 
     // TODO: automatic placeholder replacer
-    text = ReplaceFirst(text, "{online}", _groupUsers);
     text = ReplaceFirst(text, "{maxpi}", _groupMaxUsers);
+    text = ReplaceFirst(text, "{online}", _groupUsers);
+    text = ReplaceFirst(text, "{admins}", _groupAdmins);
+    text = ReplaceFirst(text, "{percent}", Math.Floor((double) (_groupUsers / _groupMaxUsers) * 100));
     // text = ReplaceFirst()
 
     return text;
@@ -245,6 +246,9 @@ public class VRCManager : ApiClient, IAsyncManager
 
   private void UpdateInfo()
   {
+    if (!_isLogged)
+      return;
+
     var now = DateUtil.ToUnixTime(DateTime.Now);
     var instances = Groups!.GetGroupInstances(_groupId);
 

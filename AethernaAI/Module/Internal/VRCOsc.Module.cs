@@ -1,12 +1,10 @@
 using System.Net;
 using OscQueryLibrary;
-using LucHeart.CoreOSC;
 using OscQueryLibrary.Utils;
+using AethernaAI.OSC;
 using AethernaAI.Util;
-using System.Collections.Concurrent;
 
 namespace AethernaAI.Module.Internal;
-
 public enum VRCOscAddresses
 {
   SET_CHATBOX_TYPING,
@@ -18,13 +16,14 @@ public class VRCOsc
   private Core? _core;
   private readonly List<OscQueryServer> _oscQueryServers = new();
   private readonly HashSet<IPEndPoint> _connectedEndpoints = new();
-  private readonly ConcurrentBag<OscConnection> _connections = new();
+  private readonly List<OscConnection> _connections = new();
+  private readonly object _lock = new object();
 
   public VRCOsc(Core core)
   {
     _core = core;
 
-    var server = new OscQueryServer("Aetherna", IPAddress.Loopback);
+    var server = new OscQueryServer("Eqipa", IPAddress.Loopback); 
     server.FoundVrcClient += HandleNewVrcClient;
 
     _oscQueryServers.Add(server);
@@ -33,27 +32,39 @@ public class VRCOsc
 
   private Task HandleNewVrcClient(OscQueryServer oscQueryServer, IPEndPoint ipEndPoint)
   {
-    if (_connectedEndpoints.Contains(ipEndPoint))
+    lock (_lock)
     {
-      Logger.Log(LogLevel.Debug, $"VRC Client at {ipEndPoint} is already connected.");
+      Logger.Log(LogLevel.Debug, $"Received connection attempt from {ipEndPoint}");
+
+      if (_connectedEndpoints.Contains(ipEndPoint))
+      {
+        Logger.Log(LogLevel.Debug, $"VRC Client at {ipEndPoint} is already connected.");
+        return Task.CompletedTask;
+      }
+
+      Logger.Log(LogLevel.Debug, $"Connecting to VRC Client at {ipEndPoint}");
+
+      _connectedEndpoints.Add(ipEndPoint);
+
+      var newConnection = new OscConnection(_core!, oscQueryServer, ipEndPoint);
+      _connections.Add(newConnection);
+      newConnection.StartReceiverLoop();
+
+      Logger.Log(LogLevel.Debug, $"Currently connected clients: {_connections.Count}");
+
       return Task.CompletedTask;
     }
-
-    Logger.Log(LogLevel.Debug, $"Connecting to VRC Client at {ipEndPoint}");
-
-    _connectedEndpoints.Add(ipEndPoint);
-
-    var newConnection = new OscConnection(_core!, oscQueryServer, ipEndPoint);
-    _connections.Add(newConnection);
-    newConnection.StartReceiverLoop();
-
-    return Task.CompletedTask;
   }
 
   public async Task Send(string address, params object[] arguments)
   {
-    var tasks = _connections.Select(connection => connection.Send(address, arguments)).ToList();
+    if (_connections.Count == 0)
+    {
+      Logger.Log(LogLevel.Warn, "No connected clients to send the message.");
+      return;
+    }
 
+    var tasks = _connections.Select(connection => connection.Send(address, arguments)).ToList();
     await Task.WhenAll(tasks);
   }
 
@@ -69,6 +80,8 @@ public class VRCOsc
       _core = core;
       _gameConnection = new OscDuplex(new IPEndPoint(ipEndPoint.Address, oscQueryServer.OscReceivePort), ipEndPoint);
       Endpoint = ipEndPoint;
+
+      Logger.Log(LogLevel.Debug, $"Created new connection for {ipEndPoint}");
     }
 
     public void StartReceiverLoop()
@@ -108,27 +121,30 @@ public class VRCOsc
         return;
       }
 
-      // switch (received.Address)
+
+      // if (received.Address == "/avatar/parameters/MuteSelf")
       // {
-      //   case "/avatar/parameters/MuteSelf":
       //     _core.Bus.Emit("PlayerMuted", (bool)received.Arguments[0]!);
-      //     break;
-      //   default:
-      //     // Logger.Log(LogLevel.Debug, $"Received unknown message from {Endpoint}: {received.Address}");
-      //     break;
       // }
     }
 
     public async Task Send(string address, params object[] arguments)
     {
       arguments ??= Array.Empty<object>();
+
       await _gameConnection.SendAsync(new OscMessage(address, arguments));
     }
 
     public void Dispose()
     {
-      _loopCancellationToken.Cancel();
+      // Only cancel if not already cancelled
+      if (!_loopCancellationToken.Token.IsCancellationRequested)
+      {
+        _loopCancellationToken.Cancel();
+      }
       _gameConnection.Dispose();
+
+      Logger.Log(LogLevel.Debug, $"Disposed connection for {Endpoint}");
     }
   }
 }

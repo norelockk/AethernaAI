@@ -2,7 +2,6 @@ using System.Text;
 using Newtonsoft.Json;
 using AethernaAI.Util;
 using AethernaAI.Model;
-using AethernaAI.Module.Internal;
 using VRChat.API.Model;
 using VRChat.API.Client;
 using User = AethernaAI.Model.User;
@@ -252,12 +251,9 @@ public class UserManager : Registry<User>, IManager
     if (!_vrcManager!.IsLogged)
       return true;
 
-    var userGroups = _vrcManager!.Users!.GetUserGroups(userId);
-    foreach (var group in userGroups)
-    {
-      if (group.GroupId == _groupId)
-        return true;
-    }
+    var groups = _vrcManager!.Users!.GetUserGroups(userId);
+    if (groups.Any(group => group.GroupId == _groupId))
+      return true;
 
     return false;
   }
@@ -268,15 +264,12 @@ public class UserManager : Registry<User>, IManager
       return true;
 
     var invites = _vrcManager!.Groups!.GetGroupInvites(_groupId, 100);
-    foreach (var invite in invites)
-    {
-      if (invite.User.Id == userId)
-        return true;
-    }
+    if (invites.Any(invite => invite.UserId == userId || invite.User.Id == userId))
+      return true;
 
     return false;
   }
-  
+
   #region prototype
   public async Task SendModeration(VRCModeration data)
   {
@@ -310,6 +303,15 @@ public class UserManager : Registry<User>, IManager
       }
     }
   }
+  
+  // await SendModeration(new() {
+  //   Type = "warn",
+  //   Reason = "test",
+  //   WorldId = _worldId,
+  //   InstanceId = "EqipaPoland~group(grp_2e1917ed-0f8d-4075-8098-5919a37c8f43)~groupAccessType(public)~region(eu)",
+  //   IsPermanent = false,
+  //   TargetUserId = "usr_56f0cd95-e51a-40c7-8746-dcd75baf8497"
+  // });
   #endregion
 
 }
