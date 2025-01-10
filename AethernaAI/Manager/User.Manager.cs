@@ -95,7 +95,7 @@ public class UserManager : Registry<User>, IManager
     Dispose(false);
   }
 
-  private protected void Process(object? sender, ProcessedEventArgs data)
+  private protected void Process(object? sender, ProcessedLogEventArgs data)
   {
     if (!_vrcManager!.IsLogged)
       return;
