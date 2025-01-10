@@ -3,6 +3,7 @@ using OscQueryLibrary;
 using LucHeart.CoreOSC;
 using OscQueryLibrary.Utils;
 using AethernaAI.Util;
+using System.Collections.Concurrent;
 
 namespace AethernaAI.Module.Internal;
 
@@ -15,8 +16,9 @@ public enum VRCOscAddresses
 public class VRCOsc
 {
   private Core? _core;
-  private readonly List<OscConnection> _connections = new();
   private readonly List<OscQueryServer> _oscQueryServers = new();
+  private readonly HashSet<IPEndPoint> _connectedEndpoints = new();
+  private readonly ConcurrentBag<OscConnection> _connections = new();
 
   public VRCOsc(Core core)
   {
@@ -31,15 +33,15 @@ public class VRCOsc
 
   private Task HandleNewVrcClient(OscQueryServer oscQueryServer, IPEndPoint ipEndPoint)
   {
-    var existingConnection = _connections.FirstOrDefault(conn => conn.Endpoint.Equals(ipEndPoint));
-
-    if (existingConnection != null)
+    if (_connectedEndpoints.Contains(ipEndPoint))
     {
-      Logger.Log(LogLevel.Debug, $"VRC Client at {ipEndPoint} already connected.");
+      Logger.Log(LogLevel.Debug, $"VRC Client at {ipEndPoint} is already connected.");
       return Task.CompletedTask;
     }
 
     Logger.Log(LogLevel.Debug, $"Connecting to VRC Client at {ipEndPoint}");
+
+    _connectedEndpoints.Add(ipEndPoint);
 
     var newConnection = new OscConnection(_core!, oscQueryServer, ipEndPoint);
     _connections.Add(newConnection);
@@ -50,13 +52,12 @@ public class VRCOsc
 
   public async Task Send(string address, params object[] arguments)
   {
-    foreach (var connection in _connections)
-    {
-      await connection.Send(address, arguments);
-    }
+    var tasks = _connections.Select(connection => connection.Send(address, arguments)).ToList();
+
+    await Task.WhenAll(tasks);
   }
 
-  private class OscConnection
+  private class OscConnection : IDisposable
   {
     private readonly Core _core;
     private readonly OscDuplex _gameConnection;
@@ -92,6 +93,7 @@ public class VRCOsc
       }
     }
 
+    // Process the received OSC message
     private async Task ReceiveLogic()
     {
       OscMessage received;
@@ -106,15 +108,15 @@ public class VRCOsc
         return;
       }
 
-      switch (received.Address)
-      {
-        case "/avatar/parameters/MuteSelf":
-          _core.Bus.Emit("PlayerMuted", (bool)received.Arguments[0]!);
-          break;
-        default:
-          // Logger.Log(LogLevel.Debug, $"Received unknown message from {Endpoint}: {received.Address}");
-          break;
-      }
+      // switch (received.Address)
+      // {
+      //   case "/avatar/parameters/MuteSelf":
+      //     _core.Bus.Emit("PlayerMuted", (bool)received.Arguments[0]!);
+      //     break;
+      //   default:
+      //     // Logger.Log(LogLevel.Debug, $"Received unknown message from {Endpoint}: {received.Address}");
+      //     break;
+      // }
     }
 
     public async Task Send(string address, params object[] arguments)
