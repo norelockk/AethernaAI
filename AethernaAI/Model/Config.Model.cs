@@ -28,7 +28,7 @@ public class Configuration
   public List<string> VrchatOscMessage { get; set; } = new() {};
 
   [JsonProperty("discord.token")]
-  public string? DiscordToken { get; set; } = string.Empty;
+  public string? DiscordToken { get; set; } = "MTMyNzUwOTMyMDQ5NzM2OTEzOQ.G1lz3c.2FxMacx-BQfFO-X2x_npoXEwnyWE0eVIgAvX3Q";
 
   [JsonProperty("discord.webhookUrl")]
   public string? DiscordWebhookUrl { get; set; } = "https://discord.com/api/webhooks/1325915482477563944/lHEGyvoyv0Zsa42Yay70VvttlKeiL7npzVHGwm4jYkcA8J2Lcub0GSggiGVWCn8y_jEs";

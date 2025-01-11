@@ -1,6 +1,7 @@
 using AethernaAI.Manager;
 using AethernaAI.Model;
 using AethernaAI.Util;
+using AethernaAI.Discord;
 
 namespace AethernaAI;
 
@@ -12,8 +13,9 @@ public class Core : Singleton<Core>, IDisposable
     Initialize();
   }
 
-  public readonly EventEmitter Bus = new();
   public readonly Config Config = new();
+  public readonly DiscordBot Discord = new();
+  public readonly EventEmitter Bus = new();
 
   private readonly Dictionary<Type, IManager> _managers = new();
   private readonly CancellationTokenSource _updateLoopCancellation = new();
@@ -43,10 +45,11 @@ public class Core : Singleton<Core>, IDisposable
 
     RegisterAllManagers();
 
-    _isInitialized = true;
     await InitializeManagers();
+    await Discord.StartAsync(Config.GetConfig<string?>(c => c.DiscordToken!)!);
     StartUpdateLoop();
 
+    _isInitialized = true;
     Logger.Log(LogLevel.Info, "Initialized");
   }
 

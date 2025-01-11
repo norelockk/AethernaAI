@@ -4,7 +4,7 @@ using AethernaAI.Util;
 
 namespace AethernaAI.Discord;
 
-public class Core : Singleton<Core>, IDisposable
+public class DiscordBot : Singleton<DiscordBot>, IDisposable
 {
   private DiscordSocketClient _client;
 
@@ -19,7 +19,7 @@ public class Core : Singleton<Core>, IDisposable
 
   public bool IsInitialized => _isInitialized;
 
-  public Core()
+  public DiscordBot()
   {
     Logger.Log(LogLevel.Step, "Initializing Discord Bot...");
     Initialize();
@@ -52,7 +52,7 @@ public class Core : Singleton<Core>, IDisposable
 
     if (!_isInitialized)
     {
-      throw new InvalidOperationException("Core must be initialized before starting.");
+      throw new InvalidOperationException("DiscordBot must be initialized before starting.");
     }
 
     try
@@ -76,7 +76,7 @@ public class Core : Singleton<Core>, IDisposable
 
     if (!_isInitialized)
     {
-      throw new InvalidOperationException("Core is not initialized.");
+      throw new InvalidOperationException("DiscordBot is not initialized.");
     }
 
     Logger.Log(LogLevel.Info, "Stopping Discord bot...");
@@ -134,11 +134,11 @@ public class Core : Singleton<Core>, IDisposable
   {
     if (_isDisposed)
     {
-      throw new ObjectDisposedException(nameof(Core));
+      throw new ObjectDisposedException(nameof(DiscordBot));
     }
   }
 
-  ~Core()
+  ~DiscordBot()
   {
     Dispose(false);
   }
