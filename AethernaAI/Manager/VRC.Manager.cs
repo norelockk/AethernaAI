@@ -25,9 +25,9 @@ public class VRCManager : ApiClient, IAsyncManager
   private string? _groupId;
   private bool _isLogged;
   private bool _isDisposed;
-  private int _groupUsers = 0;
+  private int _groupUsers =  1;
   private int _groupAdmins = 0;
-  private int _groupMaxUsers = 0;
+  private int _groupMaxUsers = 2;
   private UserManager? _userManager;
 
   private bool _isInitialized;
@@ -93,8 +93,8 @@ public class VRCManager : ApiClient, IAsyncManager
     if (!_isInitialized || _isDisposed)
       return;
 
-    _groupUsers = _isLogged ? _userManager!.GetCountByCondition(u => u.Status is Model.UserStatus.Online) : 0;
-    _groupAdmins = _isLogged ? _userManager!.GetCountByCondition(u => u.Admin && u.Status is Model.UserStatus.Online) : 0;
+    _groupUsers = _isLogged ? _userManager!.GetCountByCondition(u => u.Status is Model.UserStatus.Online) : 1;
+    _groupAdmins = _isLogged ? _userManager!.GetCountByCondition(u => u.Admin && u.Status is Model.UserStatus.Online) : 1;
 
     if ((DateTime.UtcNow - _lastOSCUpdate).TotalSeconds >= 5)
     {
